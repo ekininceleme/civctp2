@@ -112,6 +112,8 @@ public:
 
 private:
 
+	static void RecomputeCityGarrison(const Unit & city, const Army & excludeArmy);
+
 	static void Resize();
 
 	static void AddExploreTargets(const PLAYER_INDEX player);

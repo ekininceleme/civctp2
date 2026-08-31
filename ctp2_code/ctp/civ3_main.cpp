@@ -1425,9 +1425,25 @@ void main_InitializeLogs(void)
 
 		CloseHandle(fileHandle);
 	}
+#elif defined(LINUX)
+	// POSIX stat() has no portable executable creation time (st_ctime is
+	// inode change time, not creation time), so only report the last write
+	// time - which for a freshly linked binary is the same "when was this
+	// built" answer the Windows Creation/Last Write Time pair is used for.
+	struct stat exeStat = { 0 };
+	if (stat(Os::GetExeName().c_str(), &exeStat) == 0)
+	{
+		DPRINTF(k_DBG_FIX, ("** BUILD INFO:\n"));
+		struct tm * writeTime = localtime(&exeStat.st_mtime);
+		char writebuf[100];
+		strftime(writebuf, 100, "%m/%d/%Y %H:%M:%S", writeTime);
+		DPRINTF(k_DBG_FIX, ("**   Last Write Time: %s\n", writebuf));
+	}
+#endif
 
 	DPRINTF(k_DBG_FIX, ("%s\n", timebuf));
 
+#ifdef WIN32
 	DPRINTF(k_DBG_FIX, ("** SYSTEM INFO:\n"));
 
 	OSVERSIONINFO		osv;

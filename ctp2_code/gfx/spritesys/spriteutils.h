@@ -37,7 +37,7 @@ Pixel16 * spriteutils_RGB32ToEncoded(Pixel32 *buf, uint16 width, uint16 height, 
 Pixel32 spriteutils_AveragePixel32(Pixel32 pixel1, Pixel32 pixel2, Pixel32 pixel3, Pixel32 pixel4);
 void spriteutils_CreateQuarterSize(Pixel32 *srcBuf, sint32 srcWidth, sint32 srcHeight, Pixel32 **destBuf, BOOL aa);
 
-void spriteutils_ConvertPixelFormat(Pixel16 *frame, sint32 width, sint32 height);
+void spriteutils_ConvertPixelFormat(Pixel16 *frame, sint32 width, sint32 height, const MBCHAR * filename = NULL);
 
 
 

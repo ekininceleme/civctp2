@@ -429,6 +429,19 @@ sint32 Foreigner::GetTributeFrom() const {
 void Foreigner::ConsiderNewProposal(const NewProposal & newProposal ) {
 
 	if (m_myLastNewProposal.priority < newProposal.priority) {
+		if (newProposal.detail.tone == DIPLOMATIC_TONE_NOT_CHOSEN)
+		{
+			// Every proposal-creation handler is supposed to set a tone
+			// before submitting a candidate here - if one didn't, this
+			// proposal will later crash DiplomacyWindow::GetProposalText
+			// when displayed. Log which proposal type/sender/receiver so
+			// the offending handler can be found.
+			DPRINTF(k_DBG_GAMESTATE,
+				("Foreigner::ConsiderNewProposal: accepted proposal with no tone chosen - sender %d, receiver %d, first_type %d, second_type %d, priority %d\n",
+				 newProposal.senderId, newProposal.receiverId,
+				 newProposal.detail.first_type, newProposal.detail.second_type,
+				 newProposal.priority));
+		}
 		m_myLastNewProposal = newProposal;
 	}
 }

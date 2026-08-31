@@ -139,7 +139,15 @@ make -j$(nproc)
 
 Movie playback (e.g. the intro movie) requires passing `--enable-ffmpeg4movies` to `configure`, in addition to having the ffmpeg libraries installed - it is off by default because the FFmpeg API still changes a lot. Without it, the game builds and runs fine, it just won't play any movies.
 
-If you want to build a debug version it is:
+If you need logging and still an optimized version for long playtesting to figure out what the AI does for instance use:
+
+```
+./autogen.sh
+CFLAGS="$CFLAGS -O0 -fuse-ld=gold" CXXFLAGS="$CXXFLAGS -O0 -fuse-ld=gold" ./configure --enable-silent-rules --enable-logging
+make -j$(nproc)
+```
+
+If you need more such as memory leak detection, asserts and being able to use the debugger efficently use then build a debug version:
 
 ```
 ./autogen.sh

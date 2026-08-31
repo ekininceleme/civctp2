@@ -259,6 +259,21 @@ void Goal::Commit_Agent(const Agent_ptr & agent)
 	}
 #endif
 
+	if
+	(
+	     (m_target_army != ID() && !m_target_army.IsValid())
+	  || (m_target_city != ID() && !m_target_city.IsValid())
+	)
+	{
+		// The target died before the scheduler's next pass could prune this
+		// goal (e.g. a debarking army inheriting its transport's still-live
+		// goal handle, see Agent::Agent) - evacuate whatever is already
+		// committed and decline to add this agent too, instead of falling
+		// through to Get_Target_Pos's Assert(pos.IsValid()).
+		Rollback_All_Agents();
+		return;
+	}
+
 	MapPoint dest_pos = Get_Target_Pos();     // Get cheap target position first, no need for pillage checking, yet.
 	MapPoint curr_pos = agent->Get_Pos();
 
@@ -267,7 +282,18 @@ void Goal::Commit_Agent(const Agent_ptr & agent)
 		return;
 	}
 
-	Squad_Strength strength = agent->Compute_Squad_Strength();
+	// Only refresh the cache when the agent is actually unowned - nobody
+	// else has counted its strength yet, so it's safe to update. An agent
+	// already owned by m_sub_goal can be re-evaluated as a candidate here
+	// many times without ever leaving it (including evaluations that end
+	// up rejected below); refreshing its cache each time silently
+	// invalidates whatever m_sub_goal already added, since it added the
+	// old value but Remove_Agent_Strength will later subtract the new
+	// one - the same residual-strength issue fixed for Commit_Agent's
+	// double-add, just via a stale-cache route instead of a double-add.
+	Squad_Strength strength = (agent->Get_Goal() == nullptr)
+	                        ? agent->Compute_Squad_Strength()
+	                        : agent->Get_Squad_Strength();
 	strength += m_current_attacking_strength;
 	double oldMissingStrength = m_current_needed_strength.GetTotalMissing(m_current_attacking_strength);
 	double newMissingStrength = m_current_needed_strength.GetTotalMissing(strength);
@@ -280,10 +306,16 @@ void Goal::Commit_Agent(const Agent_ptr & agent)
 	        && strength.Get_Transport() > m_current_attacking_strength.Get_Transport()
 	      )
 	){
-		m_current_attacking_strength.Add_Agent_Strength(agent);
-
 		if(agent->Get_Goal() == nullptr)
 		{
+			// Only add the strength when the agent is actually being newly
+			// committed to m_agents here - an agent already owned by
+			// m_sub_goal can get re-evaluated as a match candidate many
+			// times without ever leaving m_agents, and adding its strength
+			// again each time (without a corresponding extra remove) left
+			// a residual in m_current_attacking_strength that later tripped
+			// Rollback_All_Agents's Assert(NothingNeeded()).
+			m_current_attacking_strength.Add_Agent_Strength(agent);
 			m_agents.push_back(agent);
 
 			agent->Set_Goal(this);
@@ -345,6 +377,20 @@ void Goal::Rollback_Agent(Agent_List::iterator & agent_iter)
 	agent_iter = m_agents.erase(agent_iter);
 
 	// That is starange
+	if (m_current_attacking_strength.Get_Unit_Count() < static_cast<sint8>(Get_Agent_Count()))
+	{
+		DPRINTF(k_DBG_SCHEDULER,
+		    ("\tRollback_Agent: Get_Unit_Count() < Get_Agent_Count() - player %d, goal_type %d, army 0x%lx, owner %d, Num() %d, HasCargo %d, Get_Is_Dead %d, Get_Agent_Count() %zu\n",
+		     m_playerId, m_goal_type,
+		     agent_ptr->Get_Army().m_id,
+		     agent_ptr->Get_Army().IsValid() ? agent_ptr->Get_Army()->GetOwner() : -1,
+		     agent_ptr->Get_Army().IsValid() ? agent_ptr->Get_Army()->Num() : -1,
+		     agent_ptr->Get_Army().IsValid() ? agent_ptr->Get_Army()->HasCargo() : -1,
+		     agent_ptr->Get_Is_Dead(),
+		     Get_Agent_Count()));
+		agent_ptr->Get_Squad_Strength().Log_Debug_Info_Unconditional(k_DBG_SCHEDULER, "agent_ptr just-removed strength");
+		m_current_attacking_strength.Log_Debug_Info_Unconditional(k_DBG_SCHEDULER, "current_attacking_strength after remove");
+	}
 	Assert(m_current_attacking_strength.Get_Unit_Count() >= static_cast<sint8>(Get_Agent_Count()));
 
 	agent_ptr->Set_Goal(NULL);
@@ -856,11 +902,42 @@ Utility Goal::Recompute_Matching_Value(Plan_List & matches, const bool update)
 	}
 #endif
 
+	// RallyFirst goals (e.g. GOAL_SEIGE) are designed to accumulate force
+	// over multiple turns via their own RallyComplete()/Is_Satisfied() gate
+	// in Execute_Task, so being under-strength mid-rally shouldn't wipe
+	// every already-committed agent and start over from zero - but only
+	// once the rally has visibly started: an agent whose army already has
+	// more than one unit has already had some grouping happen, and an
+	// agent whose army HasCargo() is actively carrying units toward the
+	// target. A goal that has only ever picked up a single, still-idle,
+	// not-yet-loaded unit hasn't made any real progress; holding onto that
+	// unit indefinitely would just take it away from other uses (e.g.
+	// defense) for nothing.
+	bool rallyInProgress = false;
+	if (goal_record->GetRallyFirst())
+	{
+		for
+		(
+		    Agent_List::const_iterator agent_iter  = m_agents.begin();
+		                               agent_iter != m_agents.end();
+		                             ++agent_iter
+		)
+		{
+			Agent_ptr agent_ptr = (Agent_ptr) *agent_iter;
+			if (agent_ptr->Get_Army()->Num() > 1 || agent_ptr->Get_Army()->HasCargo())
+			{
+				rallyInProgress = true;
+				break;
+			}
+		}
+	}
+
 	if
 	  (
 	       (
 	            !projected_strength.HasEnough(m_current_needed_strength)
 	         && !goal_record->GetExecuteIncrementally()
+	         && !rallyInProgress
 	       )
 	    || count == 0
 	  )
@@ -903,7 +980,7 @@ void Goal::Set_Matching_Value(Utility combinedUtility)
 
 bool Goal::Add_Match(const Agent_ptr & agent, const bool update_match_value, const bool needsCargo)
 {
-#if defined(_DEBUG)
+#if defined(_DEBUG) || defined(USE_LOGGING)
 	for
 	   (
 	    Plan_List::iterator   plan_test_iter  = m_matches.begin();
@@ -950,6 +1027,36 @@ bool Goal::CanGoalBeReevaluated() const
 
 bool Goal::Commited_Agents_Need_Orders() const
 {
+	// RallyFirst goals routinely have an agent sitting idle (zero pending
+	// orders) at the muster point while waiting for the rest of the group to
+	// arrive - that is expected, not a sign anything is wrong. The caller
+	// (Scheduler::Raw_Prioritize_Goals) responds to a true return here by
+	// rolling back every committed agent, which would otherwise scatter an
+	// in-progress rally on every raw-priority pass. Once the rally has
+	// visibly started (same criteria as the BAD_UTILITY exemption in
+	// Recompute_Matching_Value), don't treat idle waiting as needing orders.
+	bool rallyInProgress = false;
+	if (g_theGoalDB->Get(m_goal_type)->GetRallyFirst())
+	{
+		for
+		(
+		    Plan_List::const_iterator   match_iter  = m_matches.begin();
+		                                match_iter != m_matches.end();
+		                              ++match_iter
+		)
+		{
+			if(match_iter->Get_Agent()->Has_Goal(this)
+			&& (match_iter->Get_Agent()->Get_Army()->Num() > 1 || match_iter->Get_Agent()->Get_Army()->HasCargo())
+			){
+				rallyInProgress = true;
+				break;
+			}
+		}
+	}
+
+	if (rallyInProgress)
+		return false;
+
 	for
 	(
 	    Plan_List::const_iterator   match_iter  = m_matches.begin();
@@ -982,6 +1089,11 @@ void Goal::Rollback_All_Agents()
 	{
 	}
 
+	if (!m_current_attacking_strength.NothingNeeded())
+	{
+		DPRINTF(k_DBG_SCHEDULER, ("\tRollback_All_Agents: !NothingNeeded() - player %d, goal_type %d\n", m_playerId, m_goal_type));
+		m_current_attacking_strength.Log_Debug_Info_Unconditional(k_DBG_SCHEDULER, "current_attacking_strength after Rollback_All_Agents");
+	}
 	Assert(m_current_attacking_strength.NothingNeeded());
 }
 
@@ -1397,6 +1509,13 @@ const MapPoint & Goal::Get_Target_Pos() const
 		}
 		else
 		{
+			// This goal should have been removed once its target army
+			// died, well before anything tries to read a position from it
+			// here - check the log for this army id (e.g. a nearby
+			// "clearing orders" line) to see what actually happened to it.
+			DPRINTF(k_DBG_SCHEDULER,
+			    ("\tGoal::Get_Target_Pos: target army 0x%lx is no longer valid - player %d, goal_type %d\n",
+			     m_target_army.m_id, m_playerId, m_goal_type));
 			pos.x = -1;
 			pos.y = -1;
 		}
@@ -1409,6 +1528,10 @@ const MapPoint & Goal::Get_Target_Pos() const
 		}
 		else
 		{
+			// Same reasoning as the target-army case above.
+			DPRINTF(k_DBG_SCHEDULER,
+			    ("\tGoal::Get_Target_Pos: target city 0x%lx is no longer valid - player %d, goal_type %d\n",
+			     m_target_city.m_id, m_playerId, m_goal_type));
 			pos.x = -1;
 			pos.y = -1;
 		}
@@ -1729,7 +1852,7 @@ void Goal::Compute_Needed_Troop_Flow()
 
 Utility Goal::Compute_Agent_Matching_Value(const Agent_ptr agent_ptr) const
 {
-#if defined(_DEBUG)
+#if defined(_DEBUG) || defined(USE_LOGGING)
 	Player *player_ptr = g_player[ m_playerId ];
 	Assert(player_ptr && agent_ptr);
 #endif
@@ -3495,10 +3618,7 @@ bool Goal::Pretest_Bid(const Agent_ptr agent_ptr, const MapPoint & target_pos) c
 	{
 		sint32 num_tiles_to_half;
 		sint32 num_tiles_to_empty;
-		army->CalcRemainingFuel(num_tiles_to_half, num_tiles_to_empty);
-
-		num_tiles_to_empty = static_cast<sint32>(num_tiles_to_empty / k_MOVE_AIR_COST);
-		num_tiles_to_half = static_cast<sint32>(num_tiles_to_half / k_MOVE_AIR_COST);
+		army->CalcRemainingFuelTiles(num_tiles_to_half, num_tiles_to_empty);
 
 		sint32 distance_to_refuel;
 		sint32 distance_to_target;
@@ -3745,7 +3865,7 @@ bool Goal::FollowPathToTask( Agent_ptr first_army,
 					m_goal_type, dest_pos.x, dest_pos.y));
 				first_army->Log_Debug_Info(k_DBG_SCHEDULER, this);
 				uint8 magnitude = 220;
-				g_graphicsOptions->AddTextToArmy(first_army->Get_Army(), "GARRISON", magnitude);
+				g_graphicsOptions->AddTextToArmy(first_army->Get_Army(), "GARRISON", magnitude, m_goal_type, this);
 				return false;
 			}
 			else
@@ -3850,7 +3970,7 @@ bool Goal::FollowPathToTask( Agent_ptr first_army,
 				break;
 		}
 
-		g_graphicsOptions->AddTextToArmy(first_army->Get_Army(), myString, magnitude, m_goal_type);
+		g_graphicsOptions->AddTextToArmy(first_army->Get_Army(), myString, magnitude, m_goal_type, this);
 		delete[] myString;
 		delete[] goalString;
 
@@ -3890,7 +4010,7 @@ bool Goal::FollowPathToTask( Agent_ptr first_army,
 		memset(myString, 0, strlen(myText) + 80);
 		sprintf(myString, "%s failed at (%d, %d), order: %s", goal_rec->GetNameText(), dest_pos.x, dest_pos.y, order_rec->GetNameText());
 
-		g_graphicsOptions->AddTextToArmy(first_army->Get_Army(), myString, 0, m_goal_type);
+		g_graphicsOptions->AddTextToArmy(first_army->Get_Army(), myString, 0, m_goal_type, this);
 		delete[] myString;
 
 		if(test != ORDER_TEST_OK && test == ORDER_TEST_NO_MOVEMENT)
@@ -4040,7 +4160,7 @@ bool Goal::GotoTransportTaskSolution(Agent_ptr the_army, Agent_ptr the_transport
 			}
 
 			sprintf(myString, "Boat waiting at (%d,%d) to board %s for %s", dest_pos.x, dest_pos.y, GetTargetName(), goalString);
-			g_graphicsOptions->AddTextToArmy(the_transport->Get_Army(), myString, magnitude, m_goal_type);
+			g_graphicsOptions->AddTextToArmy(the_transport->Get_Army(), myString, magnitude, m_goal_type, this);
 			delete[] myString;
 			delete[] goalString;
 
@@ -4076,7 +4196,7 @@ bool Goal::GotoTransportTaskSolution(Agent_ptr the_army, Agent_ptr the_transport
 			}
 
 			sprintf(myString, "NO PATH -> BOARD (%d,%d) %s for %s", dest_pos.x, dest_pos.y, GetTargetName(), goalString);
-			g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type);
+			g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type, this);
 
 			delete[] myString;
 			delete[] goalString;
@@ -4116,7 +4236,7 @@ bool Goal::GotoTransportTaskSolution(Agent_ptr the_army, Agent_ptr the_transport
 				}
 
 				sprintf(myString, "Boat waiting at (%d,%d) to board %s for %s", pos.x, pos.y, GetTargetName(), goalString);
-				g_graphicsOptions->AddTextToArmy(the_transport->Get_Army(), myString, magnitude, m_goal_type);
+				g_graphicsOptions->AddTextToArmy(the_transport->Get_Army(), myString, magnitude, m_goal_type, this);
 				delete[] myString;
 				delete[] goalString;
 
@@ -4190,7 +4310,7 @@ bool Goal::GotoTransportTaskSolution(Agent_ptr the_army, Agent_ptr the_transport
 			        uint8 magnitude = 220;
 			        MBCHAR * myString = new MBCHAR[256];
 			        sprintf(myString, "NO PATH -> BOARD (%d,%d)", dest_pos.x, dest_pos.y);
-			        g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type);
+			        g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type, this);
 			        delete[] myString;
 		}
 
@@ -4213,12 +4333,24 @@ bool Goal::GotoTransportTaskSolution(Agent_ptr the_army, Agent_ptr the_transport
 	return false;
 }
 
-#if defined(_DEBUG)
+#if defined(_DEBUG) || defined(USE_LOGGING)
 namespace
 {
-	struct GotoGoalTaskSolution_InspectContext
+	// SetNeedUserInput only blocks *future* scheduler ticks - it does not
+	// unwind the call stack currently inside Scheduler::Match_Resources, so
+	// a second, unrelated army can still fail a path-finding check later in
+	// the same pass, before the first dialog has been answered.
+	// MessageBoxDialog has no protection against a second Query() colliding
+	// with a still-open one, so track that ourselves and just skip the
+	// popup - the log line and Assert still fire either way - until the
+	// pending one is resolved. Shared across every caller of
+	// PathFailure_InspectOrContinue below (GotoGoalTaskSolution,
+	// MoveToTarget, ...), so unrelated failures can't collide either.
+	bool s_pathFailureDialogPending = false;
+
+	struct PathFailure_InspectContext
 	{
-		GotoGoalTaskSolution_InspectContext(PLAYER_INDEX p, const Army & a)
+		PathFailure_InspectContext(PLAYER_INDEX p, const Army & a)
 		: playerId(p), army(a) {}
 
 		PLAYER_INDEX playerId;
@@ -4236,10 +4368,12 @@ namespace
 	// the map on it, so it can be looked at freely. Stays paused.
 	// "Continue" (right button, response == false): resume immediately,
 	// no screen changes.
-	void GotoGoalTaskSolution_InspectOrContinue(bool response, Cookie userData)
+	void PathFailure_InspectOrContinue(bool response, Cookie userData)
 	{
-		GotoGoalTaskSolution_InspectContext * context =
-		    static_cast<GotoGoalTaskSolution_InspectContext *>(userData.m_voidPtr);
+		PathFailure_InspectContext * context =
+		    static_cast<PathFailure_InspectContext *>(userData.m_voidPtr);
+
+		s_pathFailureDialogPending = false;
 
 		if (response)
 		{
@@ -4367,20 +4501,21 @@ bool Goal::GotoGoalTaskSolution(Agent_ptr the_army, MapPoint & goal_pos)
 
 		Assert(found); // Problem
 
-#if defined(_DEBUG)
-		if (!found)
+#if defined(_DEBUG) || defined(USE_LOGGING)
+		if (!found && !s_pathFailureDialogPending)
 		{
 			// Halt immediately so the game doesn't keep running out from
 			// under the message box while it sits unanswered. Screen
 			// switch/selection/centering stay deferred to "Inspect"; see
-			// GotoGoalTaskSolution_InspectOrContinue.
+			// PathFailure_InspectOrContinue.
+			s_pathFailureDialogPending = true;
 			g_gevManager->SetNeedUserInput();
 			MessageBoxDialog::Query
 			(
 			    "GotoGoalTaskSolution: FindPathToGoalWhileLoaded failed - see log for details.",
 			    "GotoGoalTaskSolutionFindPathToGoalWhileLoadedFailed",
-			    &GotoGoalTaskSolution_InspectOrContinue,
-			    new GotoGoalTaskSolution_InspectContext(m_playerId, the_army->Get_Army()),
+			    &PathFailure_InspectOrContinue,
+			    new PathFailure_InspectContext(m_playerId, the_army->Get_Army()),
 			    "str_ldl_MB_Inspect",
 			    "str_ldl_MB_Continue"
 			);
@@ -4440,7 +4575,7 @@ bool Goal::GotoGoalTaskSolution(Agent_ptr the_army, MapPoint & goal_pos)
 				uint8 magnitude = 220;
 				MBCHAR * myString = new MBCHAR[256];
 				sprintf(myString, "NO PATH to (%d,%d) - %s", goal_pos.x, goal_pos.y, g_theGoalDB->Get(m_goal_type)->GetNameText());
-				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type);
+				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type, this);
 
 				delete[] myString;
 			}
@@ -4455,7 +4590,7 @@ bool Goal::GotoGoalTaskSolution(Agent_ptr the_army, MapPoint & goal_pos)
 				uint8 magnitude = (uint8)(((5000000 - val) * 255.0) / 5000000);
 				MBCHAR * myString = new MBCHAR[256];
 				sprintf(myString, "Waiting GROUP to GO %s (%d,%d)\n", GetTargetName(), goal_pos.x, goal_pos.y);
-				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type);
+				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type, this);
 				delete[] myString;
 
 				return true;
@@ -4470,7 +4605,7 @@ bool Goal::GotoGoalTaskSolution(Agent_ptr the_army, MapPoint & goal_pos)
 				uint8 magnitude = 220;
 				MBCHAR * myString = new MBCHAR[256];
 				sprintf(myString, "NO PATH (GROUP)(%d,%d)", goal_pos.x, goal_pos.y);
-				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type);
+				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type, this);
 				delete[] myString;
 			}
 
@@ -4487,7 +4622,7 @@ bool Goal::GotoGoalTaskSolution(Agent_ptr the_army, MapPoint & goal_pos)
 				uint8 magnitude = 220;
 				MBCHAR * myString = new MBCHAR[256];
 				sprintf(myString, "NO PATH (TRANSP.)(%d,%d)", goal_pos.x, goal_pos.y);
-				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type);
+				g_graphicsOptions->AddTextToArmy(the_army->Get_Army(), myString, magnitude, m_goal_type, this);
 				delete[] myString;
 			}
 		}
@@ -4662,6 +4797,14 @@ void Goal::GroupTroops()
 				{
 					agent1_ptr->Group_With(agent2_ptr);
 				}
+
+				// agent1_ptr has now been given an action this cycle (all
+				// three branches above end up clearing its or agent2_ptr's
+				// Get_Can_Be_Executed()) - stop matching it against further
+				// agent2_ptr candidates, or a second match at the same
+				// position could call UnloadCargo() on it again and trip
+				// its Assert(Get_Can_Be_Executed()).
+				break;
 			}
 		}
 	}
@@ -4684,6 +4827,26 @@ MapPoint Goal::MoveToTarget(Agent_ptr rallyAgent)
 	bool found = Agent::FindPath(rallyAgent->Get_Army(), Get_Target_Pos(rallyAgent->Get_Army()), check_dest, found_path);
 
 	Assert(found);
+
+#if defined(_DEBUG) || defined(USE_LOGGING)
+	if (!found && !s_pathFailureDialogPending)
+	{
+		// Same reasoning as GotoGoalTaskSolution's identical block above -
+		// halt immediately and offer to inspect the stuck army/situation
+		// before the moment passes.
+		s_pathFailureDialogPending = true;
+		g_gevManager->SetNeedUserInput();
+		MessageBoxDialog::Query
+		(
+		    "MoveToTarget: FindPath failed - see log for details.",
+		    "MoveToTargetFindPathFailed",
+		    &PathFailure_InspectOrContinue,
+		    new PathFailure_InspectContext(m_playerId, rallyAgent->Get_Army()),
+		    "str_ldl_MB_Inspect",
+		    "str_ldl_MB_Continue"
+		);
+	}
+#endif
 
 	if(!found)
 	{
@@ -4977,7 +5140,7 @@ bool Goal::RallyTroops()
 				MapPoint goal_pos = Get_Target_Pos(agent_ptr->Get_Army());
 				MapPoint curr_pos = agent_ptr->Get_Pos();
 				sprintf(myString, "Split at (%d,%d) to GO %s (%d,%d)", curr_pos.x, curr_pos.y, GetTargetName(), goal_pos.x, goal_pos.y);
-				g_graphicsOptions->AddTextToArmy(agent_ptr->Get_Army(), myString, magnitude);
+				g_graphicsOptions->AddTextToArmy(agent_ptr->Get_Army(), myString, magnitude, m_goal_type, this);
 				delete[] myString;
 			}
 		}
@@ -5081,7 +5244,7 @@ bool Goal::RallyTroops()
 				MapPoint goal_pos;
 				goal_pos = Get_Target_Pos(agent1_ptr->Get_Army());
 				sprintf(myString, "Waiting GROUP to %s GO (%d,%d)", GetTargetName(), goal_pos.x, goal_pos.y);
-				g_graphicsOptions->AddTextToArmy(agent1_ptr->Get_Army(), myString, magnitude);
+				g_graphicsOptions->AddTextToArmy(agent1_ptr->Get_Army(), myString, magnitude, m_goal_type, this);
 				delete[] myString;
 			}
 

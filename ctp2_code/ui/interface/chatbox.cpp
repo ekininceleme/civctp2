@@ -896,6 +896,29 @@ BOOL ChatWindow::CheckForEasterEggs(const MBCHAR *s)
 			}
 		}
 	}
+
+	// Sets the debug logging army to whichever army is currently selected
+	else if(!strncmp(s, "/debugarmy", 10) && !g_network.IsActive())
+	{
+		Army army;
+		if (g_selected_item != NULL && g_selected_item->GetSelectedArmy(army))
+		{
+			CtpAiDebug::SetDebugArmy(army.m_id);
+
+			char buf[1024];
+			sprintf(buf, "Army 0x%x is filling the log for debugging", army.m_id);
+			g_chatBox->AddLine(g_selected_item->GetCurPlayer(), buf);
+		}
+		else
+		{
+			if (g_selected_item != NULL)
+			{
+				char buf[1024];
+				sprintf(buf, "No army is selected");
+				g_chatBox->AddLine(g_selected_item->GetCurPlayer(), buf);
+			}
+		}
+	}
 #endif
 
 #if 0 // Probably a bit to heavy to just leave it in

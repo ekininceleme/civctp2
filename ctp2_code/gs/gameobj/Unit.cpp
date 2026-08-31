@@ -112,6 +112,23 @@ namespace
 
 void Unit::KillUnit(const CAUSE_REMOVE_ARMY cause, PLAYER_INDEX killedBy)
 {
+	if (!IsValid())
+	{
+		// A double kill was possible when ArmyData::Fight's defenderSucks
+		// path queued GEV_KillUnit for every unit in a raw, unfiltered cell
+		// snapshot, including ones another, still-pending battle had
+		// already zeroed the HP of - fixed at the source (ArmyData.cpp).
+		// Getting here now indicates a real, still-unidentified double-kill
+		// path, not an accepted case - kept as a graceful (non-crashing)
+		// backstop, but should not actually happen any more.
+		bool DOUBLE_KILL_UNIT = false;
+		Assert(DOUBLE_KILL_UNIT);
+		DPRINTF(k_DBG_GAMESTATE,
+			("Unit::KillUnit: unit 0x%lx already removed - skipping redundant kill, cause %d killedBy %d\n",
+			 m_id, cause, killedBy));
+		return;
+	}
+
 	sint32  pollution;
 	if(GetDBRec()->GetDeathPollution(pollution))
 	{
@@ -210,6 +227,15 @@ void Unit::RemoveAllReferences(const CAUSE_REMOVE_ARMY cause, PLAYER_INDEX kille
 	&& !HasLeftMap()
 	){
 		r = g_theWorld->RemoveUnitReference(pos, *this);
+		if (!r)
+		{
+			Cell * cell = g_theWorld->AccessCell(pos);
+			DPRINTF(k_DBG_GAMESTATE,
+			    ("Unit::RemoveAllReferences: RemoveUnitReference failed - unit 0x%lx owner %d cause %d killedBy %d pos (%d,%d), cell has %d units, cell city id 0x%lx\n",
+			     m_id, owner, cause, killedBy, pos.x, pos.y,
+			     cell ? cell->GetNumUnits() : -1,
+			     cell ? cell->GetCity().m_id : 0));
+		}
 		Assert(r);
 	}
 
@@ -2368,7 +2394,7 @@ CityData *Unit::GetCityData() const
 //----------------------------------------------------------------------------
 bool Unit::NeedsRefueling() const
 {
-	return GetFuel() <= g_theConstDB->Get(0)->GetNonSpaceFuelCost() * (GetMovementPoints() / 100.0);
+	return GetFuel() <= GetData()->CalcFuelUpkeep();
 }
 
 //----------------------------------------------------------------------------

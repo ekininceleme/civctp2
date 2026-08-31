@@ -224,7 +224,7 @@ template <class T> void BSet<T>::RecurseSerialize(IC3CivArchive *archive, BSetNo
 
 template <class T> BSetID BSet<T>::RawInsert(BSetNode<T> *p, BSetNode<T> *i)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32 finite_loop=0;
 #endif
 
@@ -335,7 +335,7 @@ template <class T> void BSet<T>::NextGreater(BSetID &id)
 
 template <class T> T *BSet<T>::Next(BSetID &id)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32 finite_loop=0;
 #endif
 
@@ -375,7 +375,7 @@ template <class T> T *BSet<T>::Find(const BSetID &id)
         return NULL;
 
     BSetNode<T> *p = m_root;
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32 finite_loop=0;
 #endif
 
@@ -407,7 +407,7 @@ template <class T> BOOL BSet<T>::Del(const BSetID &id)
 
     BSetNode<T> **p = &m_root;
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32 finite_loop=0;
 #endif
 

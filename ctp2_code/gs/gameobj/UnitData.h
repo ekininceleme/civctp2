@@ -229,6 +229,17 @@ public:
 	char m_text[80];
 #endif
 
+#if defined(_DEBUG) || defined(USE_LOGGING)
+	// Cached at AddUnitVision() time, checked against the current owner/
+	// position/radius at RemoveUnitVision()/RemoveOldUnitVision() time, to
+	// pin down mismatches between what vision was actually added for and
+	// what gets used to remove it later (see the Vision.cpp
+	// k_VISIBLE_REFERENCE_MASK underflow Assert).
+	PLAYER_INDEX        m_visionAddedOwner;
+	MapPoint            m_visionAddedPos;
+	double              m_visionAddedRadius;
+#endif
+
 	UnitData(const sint32 t, const sint32 trans_t, const Unit &i,
 	         const PLAYER_INDEX o, const MapPoint &center_point, const Unit hc,
 	         UnitActor *actor = NULL);
@@ -309,6 +320,7 @@ public:
 	sint32 GetFuel() const { return m_fuel; }
 	void SetFuel(sint32 fuel);
 	bool GetUsedFuel (sint32 &fuel_remaining, sint32 &max_fuel) const;
+	double CalcFuelUpkeep() const;
 
 	bool IsVeteran() const { return Flag(k_UDF_IS_VET); };
 	void SetVeteran();

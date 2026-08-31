@@ -1059,7 +1059,19 @@ Unit Player::InsertUnitReference(const Unit &u,  const CAUSE_NEW_ARMY cause,
 	if(u.IsCity())
 		return Unit();
 
-	if(cause != CAUSE_NEW_ARMY_UPRISING) // in case of CAUSE_NEW_ARMY_UPRISING m_all_units->Insert(u); was already done in Player::CreateUnitNoPosition
+	// In the CAUSE_NEW_ARMY_UPRISING case, m_all_units->Insert(u) was usually
+	// already done by Player::CreateUnitNoPosition - but only into the
+	// ORIGINAL (Vandals) owner's list. CityData::CleanupUprising also calls
+	// this on the NEW civilisation's Player when a slave revolt actually
+	// forms a new civ, and that player's m_all_units has never seen this
+	// unit before. Comparing against the unit's current owner tells apart
+	// "this is the same list it was already inserted into" (skip, avoid a
+	// duplicate) from "this is a different player's list" (insert for real -
+	// otherwise the unit ends up in no player's m_all_units at all once
+	// UnitData::ResetUnitOwner() removes it from the old owner's list, while
+	// still being reachable via its Army/City, leaving stale vision-added
+	// state that nothing ever cleans up).
+	if(cause != CAUSE_NEW_ARMY_UPRISING || u.GetOwner() != m_owner)
 	    m_all_units->Insert(u);
 
 	if(cause != CAUSE_NEW_ARMY_NETWORK) {
@@ -1247,6 +1259,20 @@ bool Player::RemoveUnitReference(const Unit &kill_me, const CAUSE_REMOVE_ARMY ca
 		m_readiness->UnsupportUnit(kill_me, m_government_type);
 		kill_me.GetPos(pos);
 	}
+	else
+	{
+		// Real-data gathering for unit.cpp:243's Assert(r): kill_me not
+		// being in m_all_units despite Unit::KillUnit's own IsValid()
+		// check (global unit pool, not this list) having just passed is
+		// not yet understood - log the unit's state so the next
+		// occurrence can confirm or rule out the TempSlaveUnit theory
+		// above versus other candidates (e.g. an ownership change earlier
+		// in the same Player::RemoveDeadPlayers pass).
+		DPRINTF(k_DBG_GAMESTATE,
+			("Player::RemoveUnitReference: kill_me 0x%lx not found in m_all_units - player %d, cause %d, killedBy %d, isTempSlaveUnit %d, isBeingTransported %d, owner %d\n",
+			 kill_me.m_id, m_owner, cause, killedBy,
+			 kill_me.IsTempSlaveUnit(), kill_me.IsBeingTransported(), kill_me.GetOwner()));
+	}
 
 	if(RemoveCityReferenceFromPlayer(kill_me, CAUSE_REMOVE_CITY(cause), killedBy))
 	{
@@ -1264,6 +1290,9 @@ bool Player::RemoveUnitReference(const Unit &kill_me, const CAUSE_REMOVE_ARMY ca
 	{
 		RemoveTransportPoints(static_cast<sint32>(kill_me.GetDBRec()->GetMaxMovePoints()));
 		r = true;
+		DPRINTF(k_DBG_GAMESTATE,
+			("Player::RemoveUnitReference: trader unit 0x%lx removed - player %d, cause %d, killedBy %d, remaining trader units=%d\n",
+			 kill_me.m_id, m_owner, cause, killedBy, m_traderUnits->Num()));
 	}
 
 	if (*m_capitol == kill_me)
@@ -2710,7 +2739,8 @@ void Player::DelTailPathOrder(sint32 index)
 }
 
 bool Player::GetNearestCity(const MapPoint &pos, Unit &nearest,
-							  double &distance, bool butNotThisOne, const sint32 continent, bool mustHaveRoom)
+							  double &distance, bool butNotThisOne, const sint32 continent, bool mustHaveRoom,
+							  sint32 unitsNeeded)
 {
 	sint32 j, n;
 	MapPoint cpos, diff;
@@ -2727,7 +2757,7 @@ bool Player::GetNearestCity(const MapPoint &pos, Unit &nearest,
 	         ||
 	            (
 	                 mustHaveRoom
-	              && g_theWorld->GetCell(pos)->GetNumUnits() < k_MAX_ARMY_SIZE
+	              && (g_theWorld->GetCell(pos)->GetNumUnits() + unitsNeeded) <= k_MAX_ARMY_SIZE
 	            )
 	       )
 	  )
@@ -2750,7 +2780,7 @@ bool Player::GetNearestCity(const MapPoint &pos, Unit &nearest,
 		if(cpos == pos && butNotThisOne)
 			continue;
 
-		if(mustHaveRoom && g_theWorld->GetCell(cpos)->GetNumUnits() == k_MAX_ARMY_SIZE)
+		if(mustHaveRoom && (g_theWorld->GetCell(cpos)->GetNumUnits() + unitsNeeded) > k_MAX_ARMY_SIZE)
 			continue;
 
 		if(continent != -1)
@@ -3162,6 +3192,12 @@ void Player::RemoveTradeRoute(TradeRoute route, CAUSE_KILL_TRADE_ROUTE cause)
 		RemoveUsedTransportPoints(route.GetCost()); // brings back used caravans/trade-units completely
 
 		if(cause != CAUSE_KILL_TRADE_ROUTE_NO_INITIAL_CARAVANS) {
+			if (m_traderUnits->Num() == 0)
+			{
+				DPRINTF(k_DBG_GAMESTATE,
+				    ("Player::RemoveTradeRoute: no trader units left to remove - player %d, cause %d, cost %d, source 0x%lx, destination 0x%lx\n",
+				     m_owner, cause, route.GetCost(), route.GetSource().m_id, route.GetDestination().m_id));
+			}
 			KillATrader(); // removes a caravan/trade-unit
 		}
 
@@ -8729,10 +8765,13 @@ void Player::ResetVision()
 	m_vision->SetTheWholeWorldUnseen();
 	sint32 j;
 
+	DPRINTF(k_DBG_FIX, ("Player::ResetVision: owner %d, m_all_units->Num()=%d\n", m_owner, m_all_units->Num()));
+
 	for(j = 0; j < m_all_units->Num(); j++)
 	{
 		if(m_all_units->Access(j).Flag(k_UDF_VISION_ADDED))
 		{
+			DPRINTF(k_DBG_FIX, ("Player::ResetVision: owner %d, re-adding vision for unit 0x%lx\n", m_owner, m_all_units->Access(j).m_id));
 			m_all_units->Access(j).ClearFlag(k_UDF_VISION_ADDED);
 			m_all_units->Access(j).AddUnitVision();
 		}

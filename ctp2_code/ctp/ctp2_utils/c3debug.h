@@ -49,7 +49,7 @@
 
 #undef Assert
 
-#if defined(_DEBUG) || defined(SHOW_ASSERTS)
+#if defined(_DEBUG) || defined(SHOW_ASSERTS) || defined(USE_LOGGING)
 
 #ifndef _AIDLL
 	#define Assert(x)				{ if (!(x)) c3debug_Assert(#x, __FILE__, __LINE__); }

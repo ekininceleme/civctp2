@@ -124,6 +124,7 @@ GOAL_GARRISON {
 
 GOAL_SEIGE {
   RallyFirst
+  NoRollback
   NeverSatisfied
   IsGlobalGoal
 
@@ -175,6 +176,7 @@ GOAL_SEIGE {
 
 GOAL_ATTACK {
   RallyFirst
+  NoRollback
 
   SquadClass:CanAttack
 
@@ -213,6 +215,7 @@ GOAL_ATTACK {
 
 GOAL_HARASS {
   RallyFirst
+  NoRollback
 
   SquadClass:CanAttack
 
@@ -516,6 +519,7 @@ GOAL_SLAVE_RAID {
 
 GOAL_CHOKEPOINT {
   RallyFirst
+  NoRollback
 
   SquadClass:CanAttack
   SquadClass:CanDefend
@@ -703,6 +707,7 @@ GOAL_NANOATTACK_CITY {
 
 GOAL_HARASS_CITY {
   RallyFirst
+  NoRollback
 
   SquadClass:CanAttack
   SquadClass:CanDefend
@@ -2041,6 +2046,7 @@ GOAL_PARADROP {
 
 GOAL_RANGED_ATTACK {
   RallyFirst
+  NoRollback
 
   SquadClass:CanAttack
 

@@ -8,8 +8,11 @@ sint32 g_check_mem;
 
 void* operator new(const size_t size)
 {
-	Assert (0 < size);
-	void* ptr = malloc(size);
+	// operator new(0) is legal C++ and must return a valid, distinct,
+	// deletable pointer, not crash - standard containers (e.g.
+	// valarray::resize) can call it as an implementation detail even when
+	// shrinking to nothing, so a bare size==0 request is not a bug.
+	void* ptr = malloc(size ? size : 1);
 	Assert(ptr != NULL);
 
 	if(ptr == NULL)

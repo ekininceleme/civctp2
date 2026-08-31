@@ -604,7 +604,7 @@ void spriteutils_CreateQuarterSize(Pixel32 *srcBuf, sint32 srcWidth, sint32 srcH
 }
 
 
-void spriteutils_ConvertPixelFormat(Pixel16 *frame, sint32 width, sint32 height)
+void spriteutils_ConvertPixelFormat(Pixel16 *frame, sint32 width, sint32 height, const MBCHAR * filename)
 {
 	Pixel16     *table = frame+1;
 	Pixel16     *dataStart = table + height;
@@ -654,6 +654,14 @@ void spriteutils_ConvertPixelFormat(Pixel16 *frame, sint32 width, sint32 height)
 							rowData++;
 						break;
 					default:
+						// A tag byte outside the known run-IDs means the
+						// pixel payload itself is corrupt (not a container/
+						// size problem) - log which sprite file so other
+						// bad assets can be identified the same way GU059.SPR
+						// (UNIT_SEA_ENGINEER) was.
+						DPRINTF(k_DBG_FIX,
+							("spriteutils_ConvertPixelFormat: unrecognized run tag 0x%x at row %d - file %s, %dx%d\n",
+							 tag, j, filename ? filename : "?", width, height));
 						Assert(FALSE);
 						return; // With this return it does not crash, to land here something must have gone wrong before
 				}

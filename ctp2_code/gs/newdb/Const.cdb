@@ -285,6 +285,11 @@ Const : alsire {
 	Int    RailLaunchPollution                    aka RAIL_LAUNCH_POLLUTION
 	Int    SpaceFuelCost                          aka SPACE_FUEL_COST
 	Int    NonSpaceFuelCost                       aka NON_SPACE_FUEL_COST
+	Float  MoveAirCost = 100.0                    aka MOVE_AIR_COST
+	Float  MoveEnterTransportCost = 100.0         aka MOVE_ENTER_TRANSPORT_COST
+	Float  MoveCombatCost = 100.0                 aka MOVE_COMBAT_COST
+	Float  DefaultCargoMovePoints = 100.0         aka DEFAULT_CARGO_MOVE_POINTS
+	Float  BeeLineMoveCostPerTile = 100.0         aka BEE_LINE_MOVE_COST_PER_TILE
 
 	Int    StarvationWarningFudgeFactor           aka STARVATION_WARNING_FUDGE_FACTOR
 	Int    MaintenanceWarningFudgeFactor          aka MAINTENANCE_WARNING_FUDGE_FACTOR

@@ -587,6 +587,11 @@ void Vision::DoFillCircleOp(const MapPoint &posRC, CIRCLE_OP op,
 		}
 		case CIRCLE_OP_SUBTRACT:{
 
+			if(((*entry) & k_VISIBLE_REFERENCE_MASK) == 0)
+			{
+				DPRINTF(k_DBG_FIX, ("Vision::DoFillCircleOp: SUBTRACT underflow for player %d at cell (%d,%d), entry 0x%x\n",
+				                    m_owner, pos.x, pos.y, (unsigned)(*entry)));
+			}
 			Assert(((*entry) & k_VISIBLE_REFERENCE_MASK) != 0);
 
 			if ((*entry) & k_VISIBLE_REFERENCE_MASK)

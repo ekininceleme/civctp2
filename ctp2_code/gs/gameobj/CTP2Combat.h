@@ -224,7 +224,11 @@ public:
 	void ClearBattle() { m_battle = NULL; }
 #endif
 
-	void AddDeadUnit(Unit &u) { m_deadUnits.Insert(u); }
+	// A unit can be hit again (e.g. in a later ranged/normal sub-phase)
+	// before FillHoles() prunes its now-dead slot out of the combat field,
+	// which would insert it into m_deadUnits twice - KillUnits() would
+	// then queue two GEV_KillUnit events for the same unit id.
+	void AddDeadUnit(Unit &u) { if (m_deadUnits.Find(u) < 0) m_deadUnits.Insert(u); }
 	void KillUnits(GAME_EVENT_INSERT priority);
 
 private:

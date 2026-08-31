@@ -149,8 +149,10 @@ void World::FindDistances(sint32 player, const MapPoint &start, sint32 numHits,
 				   item.x, item.y,
 				   player, numHits, cb, cookie);
 		} else {
-
-			Assert(FALSE);
+			// The whole reachable map has been searched without finding
+			// numHits matches - legitimate e.g. when a good added to the
+			// database after this savegame's map was generated is not
+			// placed anywhere on it.
 			break;
 		}
 	}

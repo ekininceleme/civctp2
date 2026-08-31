@@ -408,3 +408,40 @@ void Squad_Strength::Log_Debug_Info(const int & log, sint32 playerId, sint32 goa
 	                                      )
 	          );
 }
+
+void Squad_Strength::Log_Debug_Info_Unconditional(const int & log, const char * text) const
+{
+	// Same fields as Log_Debug_Info, but not gated on the debug
+	// player/goal/army filter - for one-off asserts/diagnostics that need
+	// to report regardless of which player/army is currently selected for
+	// debugging.
+	DPRINTF
+	          (
+	           log,
+	                ("\t\t%s"
+	                 "\tm_air_bombard_str   %14.6f"
+	                 "\tm_land_bombard_str  %14.6f"
+	                 "\tm_water_bombard_str %14.6f"
+	                 "\tm_attack_str        %14.6f"
+	                 "\tm_defense_str       %14.6f"
+	                 "\tm_ranged_str        %14.6f"
+	                 "\tm_value             %14.6f"
+	                 "\tm_unit_count        %d"
+	                 "\tm_transport         %d"
+	                 "\tm_defenders         %d"
+	                 "\tm_ranged            %d\n"
+	               , text
+	               , m_air_bombard_str
+	               , m_land_bombard_str
+	               , m_water_bombard_str
+	               , m_attack_str
+	               , m_defense_str
+	               , m_ranged_str
+	               , m_value
+	               , m_unit_count
+	               , m_transport
+	               , m_defenders
+	               , m_ranged
+	              )
+	          );
+}

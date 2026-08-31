@@ -58,22 +58,37 @@ bool World::InsertUnit (const MapPoint &pos, Unit &id, UnitDynamicArray *reveale
 	Assert(!id.IsCity());
 	g_theUnitTree->Insert(id);
 	id.DoVision(revealedUnits);
+
+	bool result;
 	if(id.IsCity()) {
 		GetCell(pos)->SetCity(id);
-		return true;
+		result = true;
 	} else {
-		return GetCell(pos)->InsertUnit(id);
+		result = GetCell(pos)->InsertUnit(id);
 	}
+
+	// Paired with the RemoveUnitReference log below so the two can be
+	// grepped by pos to reconstruct the add/remove sequence for a cell
+	// when Unit::RemoveAllReferences's RemoveUnitReference failure fires.
+	DPRINTF(k_DBG_GAMESTATE, ("World::InsertUnit: id: 0x%lx pos (%d,%d) result %d\n",
+							  id.m_id, pos.x, pos.y, result));
+
+	return result;
 }
 
 sint32 World::RemoveUnitReference (const MapPoint &pos, const Unit &id)
 {
-	DPRINTF(k_DBG_GAMESTATE, ("World::RemoveUnitReference: id: 0x%lx\n",
-							  id.m_id));
-
 	g_theUnitTree->Remove(id);
 
-	return GetCell(pos)->RemoveUnitReference(id);
+	sint32 result = GetCell(pos)->RemoveUnitReference(id);
+
+	// Paired with the InsertUnit log above so the two can be grepped by
+	// pos to reconstruct the add/remove sequence for a cell when
+	// Unit::RemoveAllReferences's RemoveUnitReference failure fires.
+	DPRINTF(k_DBG_GAMESTATE, ("World::RemoveUnitReference: id: 0x%lx pos (%d,%d) result %d\n",
+							  id.m_id, pos.x, pos.y, result));
+
+	return result;
 }
 
 sint32 World::GetEmptyTransports(const MapPoint pos, CellUnitList &transports)

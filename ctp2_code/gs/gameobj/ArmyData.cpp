@@ -352,6 +352,8 @@ ArmyData::ArmyData(const Army &army, const UnitDynamicArray &units)
     m_killMeSoon            (new PointerList<KillRecord>),
     m_name                  (NULL),
     m_debugString           (NULL),
+    m_agent                 (nullptr),
+    m_transferGoalFrom      (nullptr),
     m_owner                 (-1),
     m_reentryTurn           (-1),
     m_pos                   (),
@@ -377,6 +379,8 @@ ArmyData::ArmyData(const Army &army, const CellUnitList &units)
     m_killMeSoon            (new PointerList<KillRecord>),
     m_name                  (NULL),
     m_debugString           (NULL),
+    m_agent                 (nullptr),
+    m_transferGoalFrom      (nullptr),
     m_owner                 (-1),
     m_reentryTurn           (-1),
     m_pos                   (),
@@ -402,6 +406,8 @@ ArmyData::ArmyData(const Army &army, Unit &u)
     m_killMeSoon            (new PointerList<KillRecord>),
     m_name                  (NULL),
     m_debugString           (NULL),
+    m_agent                 (nullptr),
+    m_transferGoalFrom      (nullptr),
     m_owner                 (-1),
     m_reentryTurn           (-1),
     m_pos                   (),
@@ -424,6 +430,8 @@ ArmyData::ArmyData(const Army &army)
     m_killMeSoon            (new PointerList<KillRecord>),
     m_name                  (NULL),
     m_debugString           (NULL),
+    m_agent                 (nullptr),
+    m_transferGoalFrom      (nullptr),
     m_owner                 (-1),
     m_reentryTurn           (-1),
     m_pos                   (),
@@ -445,6 +453,8 @@ ArmyData::ArmyData(CivArchive &archive)
     m_killMeSoon            (new PointerList<KillRecord>),
     m_name                  (NULL),
     m_debugString           (NULL),
+    m_agent                 (nullptr),
+    m_transferGoalFrom      (nullptr),
     m_owner                 (-1),
     m_reentryTurn           (-1),
     m_pos                   (),
@@ -2097,7 +2107,7 @@ ORDER_RESULT ArmyData::StealTechnology(const MapPoint &point)
 // Remark(s)  : -
 //
 //----------------------------------------------------------------------------
-ORDER_RESULT ArmyData::InciteRevolution(const MapPoint &point)
+ORDER_RESULT ArmyData::InciteRevolution(const MapPoint &point, sint32 baseCharge)
 {
 	Unit c = GetAdjacentCity(point);
 	if(c.m_id == 0)
@@ -2109,7 +2119,12 @@ ORDER_RESULT ArmyData::InciteRevolution(const MapPoint &point)
 	sint32 cost;
 	GetInciteRevolutionCost(point, cost);
 
-	if(g_player[m_owner]->m_gold->GetLevel() < cost)
+	// ExecuteSpecialOrder separately deducts baseCharge (the order's flat
+	// Orders.txt Gold cost) once this call returns anything but ILLEGAL, on
+	// top of the dynamic cost queued below - so the affordability check has
+	// to cover both, or the second, generic deduction can find the player
+	// short and trip Gold::SubGold's assert.
+	if(g_player[m_owner]->m_gold->GetLevel() < cost + baseCharge)
 	{
 		return ORDER_RESULT_ILLEGAL;
 	}
@@ -3629,7 +3644,7 @@ bool ArmyData::CanInciteUprising(sint32 &uindex) const
 	return false;
 }
 
-ORDER_RESULT ArmyData::InciteUprising(const MapPoint &point)
+ORDER_RESULT ArmyData::InciteUprising(const MapPoint &point, sint32 baseCharge)
 {
 	SlicObject *so;
 	sint32 uindex;
@@ -3683,7 +3698,12 @@ ORDER_RESULT ArmyData::InciteUprising(const MapPoint &point)
 
 	DPRINTF(k_DBG_GAMESTATE, ("Cost to incite uprising: %ld\n", cost));
 
-	if(g_player[m_owner]->m_gold->GetLevel() < cost)
+	// ExecuteSpecialOrder separately deducts baseCharge (the order's flat
+	// Orders.txt Gold cost) once this call returns anything but ILLEGAL, on
+	// top of the dynamic cost queued below - so the affordability check has
+	// to cover both, or the second, generic deduction can find the player
+	// short and trip Gold::SubGold's assert.
+	if(g_player[m_owner]->m_gold->GetLevel() < cost + baseCharge)
 		return ORDER_RESULT_FAILED;
 
 	g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_SubGold,
@@ -4611,16 +4631,25 @@ ORDER_RESULT ArmyData::IndulgenceSale(const MapPoint &point)
 	                       GEA_City, c,
 	                       GEA_End);
 
+	// The city owner was never checked for affordability before being
+	// charged here. Rather than blocking the sale outright when they can't
+	// pay the full amount, clamp it to whatever gold they actually have -
+	// same as Gold::SubGold's own fallback, but without tripping its
+	// assert - and only credit the acting player with what was actually
+	// collected.
 	if(c.IsConvertedTo() < 0)
 	{
+		sint32 const gold = std::min(g_theConstDB->Get(0)->GetUnconvertedIndulgenceGold(),
+		                              g_player[c.GetOwner()]->m_gold->GetLevel());
+
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_SubGold,
 		                       GEA_Player, c.GetOwner(),
-		                       GEA_Int, g_theConstDB->Get(0)->GetUnconvertedIndulgenceGold(),
+		                       GEA_Int, gold,
 		                       GEA_End);
 
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_AddGold,
 		                       GEA_Player, m_owner,
-		                       GEA_Int, g_theConstDB->Get(0)->GetUnconvertedIndulgenceGold(),
+		                       GEA_Int, gold,
 		                       GEA_End);
 
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_AddHappyTimer,
@@ -4632,13 +4661,16 @@ ORDER_RESULT ArmyData::IndulgenceSale(const MapPoint &point)
 	}
 	else if(c.IsConvertedTo() == m_array[uindex].GetOwner())
 	{
+		sint32 const gold = std::min(g_theConstDB->Get(0)->GetConvertedIndulgenceGold(),
+		                              g_player[c.GetOwner()]->m_gold->GetLevel());
+
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_SubGold,
 		                       GEA_Player, c.GetOwner(),
-		                       GEA_Int, g_theConstDB->Get(0)->GetConvertedIndulgenceGold(),
+		                       GEA_Int, gold,
 		                       GEA_End);
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_AddGold,
 		                       GEA_Player, m_owner,
-		                       GEA_Int, g_theConstDB->Get(0)->GetConvertedIndulgenceGold(),
+		                       GEA_Int, gold,
 		                       GEA_End);
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_AddHappyTimer,
 		                       GEA_City, c.m_id,
@@ -4649,13 +4681,16 @@ ORDER_RESULT ArmyData::IndulgenceSale(const MapPoint &point)
 	}
 	else
 	{
+		sint32 const gold = std::min(g_theConstDB->Get(0)->GetOtherFaithIndulgenceGold(),
+		                              g_player[c.GetOwner()]->m_gold->GetLevel());
+
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_SubGold,
 		                       GEA_Player, c.GetOwner(),
-		                       GEA_Int, g_theConstDB->Get(0)->GetOtherFaithIndulgenceGold(),
+		                       GEA_Int, gold,
 		                       GEA_End);
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_AddGold,
 		                       GEA_Player, m_owner,
-		                       GEA_Int, g_theConstDB->Get(0)->GetOtherFaithIndulgenceGold(),
+		                       GEA_Int, gold,
 		                       GEA_End);
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent, GEV_AddHappyTimer,
 		                       GEA_City, c.m_id,
@@ -5525,6 +5560,43 @@ void ArmyData::MinMovementPoints(double &cur) const
 
 //----------------------------------------------------------------------------
 //
+// Name       : ArmyData::CargoMinMovementPoints
+//
+// Description: Get the min of the m_MaxMovePoints of the cargo carried by
+//              this army's units (from their UnitRecords) and put it in
+//              double &cur. Left at its initial (very large) value if the
+//              army is not carrying any cargo.
+//
+// Parameters : -
+//
+// Globals    : -
+//
+// Returns    : -
+//
+// Remark(s)  : -
+//
+//----------------------------------------------------------------------------
+void ArmyData::CargoMinMovementPoints(double &cur) const
+{
+	cur = 10000000.0;
+
+	for(sint32 i = 0; i < m_nElements; i++)
+	{
+		const UnitDynamicArray * cargo =
+		    m_array[i].AccessData()->GetCargoList();
+
+		if (cargo)
+		{
+			for(sint32 j = 0; j < cargo->Num(); j++)
+			{
+				cur = std::min<double>(cur, cargo->Access(j).GetMaxMovePoints());
+			}
+		}
+	}
+}
+
+//----------------------------------------------------------------------------
+//
 // Name       : ArmyData::GetBombardRange
 //
 // Description: Test if this army can bombard. Fill in min_rge and max_rge.
@@ -5760,7 +5832,7 @@ bool ArmyData::BombardCity(const MapPoint &point, bool doAnimations)
 				}
 				else if(m_array[i].GetDBRec()->GetMovementTypeAir())
 				{
-					m_array[i].DeductMoveCost(k_MOVE_COMBAT_COST, out_of_fuel);
+					m_array[i].DeductMoveCost(g_theConstDB->Get(0)->GetMoveCombatCost(), out_of_fuel);
 				}
 				else
 				{
@@ -6008,7 +6080,7 @@ ORDER_RESULT ArmyData::Bombard(const MapPoint &orderPoint)
 				}
 				else if(m_array[i].GetDBRec()->GetMovementTypeAir())
 				{
-					m_array[i].DeductMoveCost(k_MOVE_COMBAT_COST, out_of_fuel);
+					m_array[i].DeductMoveCost(g_theConstDB->Get(0)->GetMoveCombatCost(), out_of_fuel);
 				}
 				else
 				{
@@ -7135,7 +7207,7 @@ void ArmyData::CheckLoadSleepingCargoFromCity()
 				{
 					bool out_of_fuel;
 					u.SetIsInTransport(m_array[i]);
-					u.DeductMoveCost(k_MOVE_ENTER_TRANSPORT_COST, out_of_fuel);
+					u.DeductMoveCost(g_theConstDB->Get(0)->GetMoveEnterTransportCost(), out_of_fuel);
 					g_theWorld->RemoveUnitReference(m_pos, u);
 					u.UndoVision();
 					u.RemoveUnitVision();
@@ -8419,7 +8491,7 @@ bool ArmyData::MoveIntoTransport(const MapPoint &pos, CellUnitList &transports)
 				m_array[i].SetIsInTransport(transports[j]);
 				bool dummy_out_of_fuel;
 				m_array[i].DeductMoveCost
-				    (k_MOVE_ENTER_TRANSPORT_COST, dummy_out_of_fuel);
+				    (g_theConstDB->Get(0)->GetMoveEnterTransportCost(), dummy_out_of_fuel);
 
 				g_theWorld->RemoveUnitReference(m_pos, m_array[i]);
 				m_array[i].UndoVision();
@@ -8625,6 +8697,16 @@ bool ArmyData::ExecuteUnloadOrder(Order *order)
 
 	if(debark.m_id != 0)
 	{
+		// The debarked force gets a brand new, goal-less Agent shortly
+		// (via GEV_CreatedArmy). If we're working a goal ourselves, leave
+		// a hint on it so that once its Agent is actually constructed, it
+		// gets committed to the same goal instead of being freely
+		// re-matched to whatever goal scores highest for it next cycle.
+		if(m_agent != NULL)
+		{
+			debark.AccessData()->SetTransferGoalFrom(m_agent);
+		}
+
 		g_gevManager->AddEvent(GEV_INSERT_AfterCurrent,
 		                       GEV_FinishUnload,
 		                       GEA_Army, m_id,
@@ -8810,7 +8892,7 @@ void ArmyData::DeductMoveCost(const MapPoint &pos)
 	{
 		if(m_array[i].GetMovementTypeAir())
 		{
-			c = k_MOVE_AIR_COST;
+			c = g_theConstDB->Get(0)->GetMoveAirCost();
 		// EMOD - this code may no longer be necessay since I
 		// think this code only gets the cost of the pos and
 		// unitdata is used for the unit deduct cost
@@ -9063,6 +9145,16 @@ sint32 ArmyData::Fight(CellUnitList &defender)
 			g_director->AddAttack(ta, td);
 			for(i = 0; i < defender.Num(); i++) // insert unit kill event such that it is exectued after BattleAftermath event
 			{
+				// defender was snapshotted from the cell's raw unit list
+				// (Cell::GetArmy), which is not pruned until a unit's own
+				// deferred GEV_KillUnit has processed - a still-pending
+				// kill from an earlier, paused battle against the same
+				// stack can leave an already-dead unit in here.
+				if(!defender[i].IsValid() || defender[i].GetHP() <= 0)
+				{
+					continue;
+				}
+
 				CAUSE_REMOVE_ARMY cause = CAUSE_REMOVE_ARMY_DIED_IN_ATTACK;
 				if(defender[i].m_id == td.m_id)
 				{
@@ -9389,6 +9481,33 @@ void ArmyData::CalcRemainingFuel(sint32 &num_tiles_to_half, sint32 &num_tiles_to
 			num_tiles_to_empty = fuel_remaining;
 		}
 	}
+}
+
+//-------------------------------------------------------------------------------------------
+//
+// Name       : ArmyData::CalcRemainingFuelTiles
+//
+// Description: CalcRemainingFuel, converted from move points to tiles.
+//              Was duplicated at each call site (CtpAi::GetNearestRefuel,
+//              CtpAi::RefuelAirplane, Goal::Pretest_Bid).
+//
+// Parameters : num_tiles_to_half  : tiles the lowest fueled plane can move
+//                                   before reaching half its fuel level.
+//              num_tiles_to_empty : tiles the lowest fueled plane can move
+//                                   before running out of fuel.
+//
+// Globals    : -
+//
+// Returns    : -
+//
+// Remark(s)  : -
+//
+//--------------------------------------------------------------------------------------------
+void ArmyData::CalcRemainingFuelTiles(sint32 &num_tiles_to_half, sint32 &num_tiles_to_empty) const
+{
+	CalcRemainingFuel(num_tiles_to_half, num_tiles_to_empty);
+	num_tiles_to_half  = static_cast<sint32>(num_tiles_to_half  / g_theConstDB->Get(0)->GetMoveAirCost());
+	num_tiles_to_empty = static_cast<sint32>(num_tiles_to_empty / g_theConstDB->Get(0)->GetMoveAirCost());
 }
 
 bool ArmyData::CanMove()
@@ -9747,7 +9866,7 @@ bool ArmyData::ExecuteSpecialOrder(Order *order, bool &keepGoing)
 			result = UndergroundRailway(order->m_point);
 			break;
 		case UNIT_ORDER_INCITE_UPRISING:
-			result = InciteUprising(order->m_point);
+			result = InciteUprising(order->m_point, order_rec ? order_rec->GetGold() : 0);
 			break;
 		case UNIT_ORDER_BIO_INFECT:
 			result = BioInfect(order->m_point);
@@ -9784,7 +9903,7 @@ bool ArmyData::ExecuteSpecialOrder(Order *order, bool &keepGoing)
 			result = InterceptTrade();
 			break;
 		case UNIT_ORDER_INCITE_REVOLUTION:
-			result = InciteRevolution(order->m_point);
+			result = InciteRevolution(order->m_point, order_rec ? order_rec->GetGold() : 0);
 			break;
 		case UNIT_ORDER_PILLAGE_UNCONDITIONALLY:
 			result = Pillage(false);

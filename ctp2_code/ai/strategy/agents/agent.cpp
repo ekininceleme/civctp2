@@ -58,6 +58,7 @@
 #include "GameEventUser.h"
 #include "CTPDatabase.h"
 #include "OrderRecord.h"    // g_theOrderDB
+#include "ConstRecord.h"    // g_theConstDB
 #include "GoalRecord.h"
 #include "UnitRecord.h"
 #include "mapanalysis.h"
@@ -100,6 +101,28 @@ Agent::Agent(const Army & army)
     m_neededForGarrison (false)
 {
 	Compute_Squad_Strength();
+
+	if (m_army.IsValid())
+	{
+		ArmyData * armyData = m_army.AccessData();
+		armyData->SetAgent(this);
+
+		// Consume the one-shot "commit me to the same goal as this other
+		// agent" hint left by e.g. ArmyData::ExecuteUnloadOrder, so cargo
+		// debarked from a transport working a goal continues that goal
+		// instead of sitting free for the scheduler to send anywhere.
+		Agent * transferFrom = armyData->GetTransferGoalFrom();
+		if (transferFrom != NULL)
+		{
+			armyData->SetTransferGoalFrom(NULL);
+
+			Goal_ptr goal = transferFrom->Get_Goal();
+			if (goal != NULL)
+			{
+				goal->Commit_Agent(this);
+			}
+		}
+	}
 }
 
 Agent::Agent(const Agent & an_Original)
@@ -121,6 +144,15 @@ Agent::Agent(const Agent & an_Original)
 Agent::~Agent()
 {
 // Nothing to delete, references only
+
+	// Only clear it if it's still pointing to this agent - a copy made for
+	// scheduler planning/snapshotting never claims the pointer in the first
+	// place (see the copy constructor above), so its destructor must not
+	// clear a still-live original agent's registration.
+	if (m_army.IsValid() && m_army.AccessData()->GetAgent() == this)
+	{
+		m_army.AccessData()->SetAgent(NULL);
+	}
 }
 
 Agent & Agent::operator = (const Agent & an_Original)
@@ -306,7 +338,23 @@ bool Agent::FindPathForTransportTasks(const uint32 & move_intersection, const Ma
 	double move_points;
 	m_army->MinMovementPoints(move_points);
 
-	double trans_max_r = 100.0 / move_points;
+	// Water cost needs to be scaled by how the cargo's own speed compares
+	// to the ship's, not just by the ship's speed - it is the cargo, not
+	// the ship, that walks the land legs of the route after disembarking.
+	// FindPathToPickUpCargo/FindPathToBoard route through here too, and
+	// have no cargo to ask about yet; fall back to the ship-only ratio
+	// (equivalent to assuming 100 move points of cargo) for those.
+	double trans_max_r;
+	if (m_army->HasCargo())
+	{
+		double cargo_move_points;
+		m_army->CargoMinMovementPoints(cargo_move_points);
+		trans_max_r = cargo_move_points / move_points;
+	}
+	else
+	{
+		trans_max_r = g_theConstDB->Get(0)->GetDefaultCargoMovePoints() / move_points;
+	}
 
 	if (RobotAstar2::s_aiPathing.FindPath( RobotAstar2::PATH_TYPE_TRANSPORT,
 										   m_army,
@@ -427,14 +475,15 @@ double Agent::GetRoundsPrecise(const MapPoint & pos, sint32 & cells) const
 		///start and destination mappoints. - Calvitix
 	//	Cell *          myCell      = g_theWorld->GetCell(pos);
 	//	Cell *          otherCell   = g_theWorld->GetCell(Get_Pos());
-		double const    movement    = 100.0;
-		// This does not do the trick, better avaerage
-		// over all tiles from pos to target, unfortunately this
-		// is slow.
+		double const    movement    = g_theConstDB->Get(0)->GetBeeLineMoveCostPerTile();
+		// Using just the two endpoint cells' terrain cost (commented out
+		// below) is not accurate enough, since it says nothing about the
+		// terrain in between them. Averaging every tile along the way
+		// would fix that, but is too slow to do here.
 		//  std::min(myCell->GetMoveCost(), otherCell->GetMoveCost());
 
-		//ToDo : instead of 100.0, compute the min of terrain costs (with implementation)
-		move_point_cost = movement * sqrt(static_cast<double>(cells)); //original : 100.0
+		//ToDo : instead of a flat BeeLineMoveCostPerTile, compute the min of terrain costs (with implementation)
+		move_point_cost = movement * sqrt(static_cast<double>(cells));
 	}
 
 	m_army->MinMovementPoints(min_move);
@@ -679,7 +728,7 @@ void Agent::Group_With( Agent_ptr second_army )
 	MapPoint dest_pos = m_goal->Get_Target_Pos();
 
 	sprintf(myString, "Grouping at (%d,%d) to %s %s (%d,%d)", pos.x, pos.y, goalString, m_goal->GetTargetName(), dest_pos.x, dest_pos.y);
-	g_graphicsOptions->AddTextToArmy(m_army, myString, 220, m_goal->Get_Goal_Type());
+	g_graphicsOptions->AddTextToArmy(m_army, myString, 220, m_goal->Get_Goal_Type(), m_goal);
 
 	delete[] goalString;
 	delete[] myString;
@@ -702,7 +751,7 @@ void Agent::Ungroup_Order()
 
 	MBCHAR * myString = new MBCHAR[256];
 	sprintf(myString, "Ungrouping at (%d,%d)", pos.x, pos.y);
-	g_graphicsOptions->AddTextToArmy(m_army, myString, 220, Get_Goal_Type());
+	g_graphicsOptions->AddTextToArmy(m_army, myString, 220, Get_Goal_Type(), m_goal);
 	delete[] myString;
 }
 
@@ -859,7 +908,7 @@ sint32 Agent::DisbandObsoleteUnits()
 			PerformOrderHere(order_rec, &found_path);
 			MBCHAR * myString = new MBCHAR[255];
 			sprintf(myString, "Move to DISBAND @ %s", nearestCity.CD()->GetName());
-			g_graphicsOptions->AddTextToArmy(m_army, myString, 255, Get_Goal_Type());
+			g_graphicsOptions->AddTextToArmy(m_army, myString, 255, Get_Goal_Type(), m_goal);
 		}
 		return 0;
 	}
@@ -878,7 +927,7 @@ sint32 Agent::DisbandObsoleteUnits()
 	if(order_rec)
 	{
 		PerformOrder(order_rec);
-		g_graphicsOptions->AddTextToArmy(m_army, "DISBAND", 255, Get_Goal_Type());
+		g_graphicsOptions->AddTextToArmy(m_army, "DISBAND", 255, Get_Goal_Type(), m_goal);
 	}
 
 	return unit_count;
@@ -917,7 +966,7 @@ void Agent::WaitHere(const MapPoint & goal_pos)
 		m_army->GetPos(pos);
 		MBCHAR * myString = new MBCHAR[255];
 		sprintf(myString, "Waiting GROUP @ (%d,%d) to %s GO (%d,%d)", pos.x, pos.y, Goal::GetTargetName(Get_Target_Pos()), goal_pos.x, goal_pos.y);
-		g_graphicsOptions->AddTextToArmy(m_army, myString, 220, Get_Goal_Type());
+		g_graphicsOptions->AddTextToArmy(m_army, myString, 220, Get_Goal_Type(), m_goal);
 		delete[] myString;
 	}
 }
@@ -954,7 +1003,7 @@ void Agent::ClearOrders()
 			sprintf(myString, "Clearing oders at (%d,%d) for %s (%d,%d)", pos.x, pos.y, goalString, m_targetPos.x, m_targetPos.y);
 		}
 
-		g_graphicsOptions->AddTextToArmy(m_army, myString, 220, m_goal->Get_Goal_Type());
+		g_graphicsOptions->AddTextToArmy(m_army, myString, 220, m_goal->Get_Goal_Type(), m_goal);
 
 		delete[] goalString;
 		delete[] myString;

@@ -76,6 +76,13 @@ protected:
 	MapPoint m_start;
 	MapPoint m_dest;
 
+	// m_check_dest itself stays private (see below); this exposes just a
+	// read-only view to subclasses (e.g. RobotAstar2's transport-specific
+	// EntryCost callbacks) that need to recognise the same "final
+	// destination does not need to be literally enterable" case that
+	// UnitAstar::EntryCost itself already special-cases.
+	bool GetCheckDest() const { return m_check_dest; }
+
 public:
 	UnitAstar();
 

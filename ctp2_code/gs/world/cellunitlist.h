@@ -216,6 +216,7 @@ public:
 	};
 
 	bool IsCivilian() const;
+	bool CanAttackOrBombard() const;
 	bool IsInvisibleForGlobeSat() const;
 
 	bool CanBombardTargetType(const CellUnitList & units) const;

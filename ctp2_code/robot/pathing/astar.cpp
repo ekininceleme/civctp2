@@ -517,6 +517,30 @@ bool Astar::FindPath
 	AI_DPRINTF(k_DBG_ASTAR, GetOwner(), -1, GetArmyId(),
 	    ("\tFinalPathCosts: %f , StartPos (%d, %d), DestPos (%d, %d), BestPos (%d, %d)\n", total_cost, start.x, start.y, dest.x, dest.y, best->m_pos.x, best->m_pos.y));
 
+#if defined(_DEBUG) || defined(USE_LOGGING)
+	if (r)
+	{
+		// Print the actual sequence of tiles the search settled on, so a
+		// suspiciously high total cost can be checked against the real
+		// route instead of just start/dest/best. Walks a copy of a_path so
+		// the caller's own Start()/Next() cursor on the original is left
+		// untouched.
+		char pathBuf[4096];
+		sint32 pathBufLen = 0;
+		MapPoint pathPos;
+		Path pathCopy(&a_path);
+		pathCopy.Start(pathPos);
+		pathBufLen += sprintf(pathBuf + pathBufLen, "(%d,%d)", pathPos.x, pathPos.y);
+		while (!pathCopy.IsEnd() && pathBufLen < sint32(sizeof(pathBuf)) - 32)
+		{
+			pathCopy.Next(pathPos);
+			pathBufLen += sprintf(pathBuf + pathBufLen, "->(%d,%d)", pathPos.x, pathPos.y);
+		}
+		AI_DPRINTF(k_DBG_ASTAR, GetOwner(), -1, GetArmyId(),
+		    ("\tFINAL_PATH (%d steps): %s\n", a_path.Num(), pathBuf));
+	}
+#endif
+
 #ifdef TRACK_ASTAR_NODES
 	g_paths_found++;
 	g_paths_lengths += a_path.Num();

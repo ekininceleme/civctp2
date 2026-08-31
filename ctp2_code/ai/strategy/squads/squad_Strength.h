@@ -114,6 +114,7 @@ public:
 
 	bool NothingNeeded() const;
 	void Log_Debug_Info(const int & log, sint32 playerId, sint32 goalType, const char * text) const;
+	void Log_Debug_Info_Unconditional(const int & log, const char * text) const;
 	bool HasEnough(const Squad_Strength & otherStrength, bool ignoreBombard = false) const;
 	bool HasEnoughGarrisonUnits(const Squad_Strength & otherStrength, const sint32 playerId) const;
 	float GetTotalMissing(const Squad_Strength & otherStrength) const;

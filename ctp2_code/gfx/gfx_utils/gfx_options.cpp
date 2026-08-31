@@ -113,7 +113,7 @@ void GraphicsOptions::ArmyTextOff(void)
 	m_armyTextOn = false;
 }
 
-bool GraphicsOptions::AddTextToArmy(Army army, const char *text, const uint8 &colorMagnitude, const sint32 goalType) const
+bool GraphicsOptions::AddTextToArmy(Army army, const char *text, const uint8 &colorMagnitude, const sint32 goalType, const void * goalHandle) const
 {
 	if (!army.IsValid())
 		return false;
@@ -121,7 +121,9 @@ bool GraphicsOptions::AddTextToArmy(Army army, const char *text, const uint8 &co
 	army.AccessData()->SetDebugString(text);
 	army.AccessData()->SetDebugStringColor(colorMagnitude);
 
-	AI_DPRINTF(k_DBG_SCHEDULER, army->GetOwner(), goalType, army.m_id, ("\t\t%s\n", text));
+	AI_DPRINTF(k_DBG_SCHEDULER, army->GetOwner(), goalType, army.m_id,
+	           ("\t\towner=%d, army=%x, goal_type=%d, goal=%x: %s\n",
+	            army->GetOwner(), army.m_id, goalType, goalHandle, text));
 
 	return true;
 }

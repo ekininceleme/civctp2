@@ -77,7 +77,7 @@ public:
 	void ArmyTextOn(void);
 	void ArmyTextOff(void);
 
-	bool AddTextToArmy(Army army, const char *text, const uint8 &colorMagnitude, const sint32 goalType = -1) const;
+	bool AddTextToArmy(Army army, const char *text, const uint8 &colorMagnitude, const sint32 goalType = -1, const void * goalHandle = NULL) const;
 	void ResetArmyText(Army army);
 
 	bool IsArmyNameOn(void) const { return m_armyNameOn; }

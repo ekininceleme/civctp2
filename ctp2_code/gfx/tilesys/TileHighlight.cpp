@@ -60,10 +60,10 @@
 #include "colorset.h"       // g_colorSet
 #include "director.h"
 #include "textutils.h"
-#include "MoveFlags.h"
 #include "ArmyData.h"
 #include "TerrainRecord.h"
 #include "UnitData.h"
+#include "ConstRecord.h"     // g_theConstDB
 
 #define k_TURN_BOX_SIZE_MINIMUM     4
 #define k_TURN_BOX_SIZE             8
@@ -109,7 +109,7 @@ double GetEntryCost
 )
 {
 	double	cost	= a_Army.GetMovementTypeAir()
-					  ? k_MOVE_AIR_COST
+					  ? g_theConstDB->Get(0)->GetMoveAirCost()
 					  : g_theWorld->GetMoveCost(a_Place);
 
 	if ((a_Army.IsAtLeastOneMoveShallowWater() ||

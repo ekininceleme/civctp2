@@ -83,6 +83,9 @@
 //----------------------------------------------------------------------------
 
 #include "c3.h"
+
+#include <map>
+
 #include "ctpai.h"
 
 #include "profileai.h"
@@ -243,6 +246,32 @@ void CtpAi::AddGoalsForCitiesAndArmies(const PLAYER_INDEX player)
 		}
 
 		GoalRecord const * goal = g_theGoalDB->Get(goal_type);
+
+		// Remove any existing goals of this type whose target city or army
+		// has died since the goal was created (e.g. a city lost to
+		// flooding) - otherwise they linger in the scheduler and keep
+		// hitting Get_Target_Pos's Assert(pos.IsValid()) every time
+		// they're re-evaluated, on every later turn, until the game ends.
+		{
+			Scheduler::Sorted_Goal_List existingGoals = scheduler.GetGoalsOfType(goal_type);
+			for
+			(
+			    Scheduler::Sorted_Goal_Iter goalIter  = existingGoals.begin();
+			                                goalIter != existingGoals.end();
+			                              ++goalIter
+			)
+			{
+				Goal_ptr existingGoal = goalIter->second;
+				bool const army_dead = (existingGoal->Get_Target_Army() != ID())
+				                     && !existingGoal->Get_Target_Army().IsValid();
+				bool const city_dead = (existingGoal->Get_Target_City() != ID())
+				                     && !existingGoal->Get_Target_City().IsValid();
+				if (army_dead || city_dead)
+				{
+					scheduler.Remove_Goal(existingGoal);
+				}
+			}
+		}
 
 		for(PLAYER_INDEX foreignerId = 0; foreignerId < CtpAi::s_maxPlayers; foreignerId++)
 		{
@@ -554,6 +583,15 @@ STDEHANDLER(CtpAi_BeginSchedulerEvent)
 	scheduler.Process_Agent_Changes();
 
 	scheduler.Reset_Agent_Execution();
+
+	// Refresh agent strengths and each goal's running Get_Squad_Strength()
+	// total before Process_Goal_Changes (which can roll back goals) runs -
+	// otherwise it uses cached strengths left over from the end of last
+	// turn's last CtpAi_ProcessMatchesEvent cycle, which can be stale if an
+	// agent's army composition changed since then (e.g. via grouping),
+	// tripping Rollback_Agent/Rollback_All_Agents's strength invariants.
+	scheduler.Compute_Agent_Strength();
+	scheduler.Recompute_Goal_Strength();
 
 	DPRINTF(k_DBG_AI, ("//  elapsed time = %d ms\n", (GetTickCount() - t1)));
 
@@ -1498,6 +1536,64 @@ void CtpAi::UnGroupGarrisonUnits(const PLAYER_INDEX playerId)
 	} // for i
 }
 
+// Recomputes a single city's current-garrison count/strength from scratch,
+// the same way ComputeCityGarrisons does for every city once per turn, but
+// scoped to one city and able to exclude a specific army - used when an
+// army is relocated out of a city outside of that once-per-turn pass, so
+// the incremental alternative (subtracting the relocated army's own
+// defense_count from the cached total) can't go stale/negative relative
+// to whatever ComputeCityGarrisons actually counted it as. Cheap to call
+// here since a city can be room-made-for at most once per turn.
+void CtpAi::RecomputeCityGarrison(const Unit & city, const Army & excludeArmy)
+{
+	Player * player_ptr = g_player[city.GetOwner()];
+	Assert(player_ptr != NULL);
+
+	double strength = 0.0;
+	sint8  count    = 0;
+
+	sint32 num_armies = player_ptr->m_all_armies->Num();
+	for (sint32 armyIndex = 0; armyIndex < num_armies; ++armyIndex)
+	{
+		Army army = player_ptr->m_all_armies->Access(armyIndex);
+		Assert(army.IsValid());
+
+		if (army == excludeArmy || army->NumOrders() > 0)
+			continue;
+
+		if (g_theWorld->GetCity(army->RetPos()).m_id != city.m_id)
+			continue;
+
+		sint32 transports, max, empty;
+		if (army->GetCargo(transports, max, empty))
+			continue;
+
+		sint8 defense_count;
+		sint8 tmp_count;
+		float tmp;
+		float defense_strength;
+		army->ComputeStrength(tmp,
+		                      defense_strength,
+		                      tmp,
+		                      defense_count,
+		                      tmp_count,
+		                      tmp,
+		                      tmp,
+		                      tmp,
+		                      tmp,
+		                      false // check
+		                     );
+
+		defense_strength += static_cast<float>(city.GetDefendersBonus() * static_cast<double>(defense_count));
+
+		strength += defense_strength;
+		count    += defense_count;
+	}
+
+	city->GetCityData()->SetCurrentGarrisonStrength(strength);
+	city->GetCityData()->SetCurrentGarrison(count);
+}
+
 void CtpAi::MakeRoomForNewUnits(const PLAYER_INDEX playerId)
 {
 
@@ -1536,6 +1632,18 @@ void CtpAi::MakeRoomForNewUnits(const PLAYER_INDEX playerId)
 
 			if (move_army.m_id == 0x0)
 			{
+				// Can happen if every unit in the garrison belongs to a
+				// single army whose own size is already >= k_MAX_ARMY_SIZE
+				// (e.g. grown past the cap via repeated grouping) - there
+				// is then no smaller sub-army left to relocate. Log each
+				// garrison army's id/size to confirm.
+				for (j = 0; j < garrison.Num(); j++)
+				{
+					DPRINTF(k_DBG_AI,
+						("\tMakeRoomForNewUnits: no army smaller than k_MAX_ARMY_SIZE (%d) - player %d, city %s at (%d,%d), garrison unit %d: army 0x%lx, army.Num()=%d\n",
+						 k_MAX_ARMY_SIZE, playerId, city.GetName(), pos.x, pos.y,
+						 j, garrison.Access(j).GetArmy().m_id, garrison.Access(j).GetArmy().Num()));
+				}
 				Assert(0);
 				continue;
 			}
@@ -1560,28 +1668,15 @@ void CtpAi::MakeRoomForNewUnits(const PLAYER_INDEX playerId)
 
 						g_graphicsOptions->AddTextToArmy(move_army, "MakeRoom", 255);
 
-						sint8 defense_count;
-						sint8 tmp_count;
-						float tmp;
-						float defense_strength;
-						move_army->ComputeStrength(tmp,
-						                           defense_strength,
-						                           tmp,
-						                           defense_count,
-						                           tmp_count,
-						                           tmp,
-						                           tmp,
-						                           tmp,
-						                           tmp,
-						                           true
-						                          );
-
-						defense_strength -= static_cast<float>(city.GetDefendersBonus() * static_cast<double>(defense_count));
-
-						double prev_city_defense = city->GetCityData()->GetCurrentGarrisonStrength();
-						city->GetCityData()->SetCurrentGarrisonStrength( prev_city_defense + defense_strength );
-						sint8 prev_garrison = city->GetCityData()->GetCurrentGarrison();
-						city->GetCityData()->SetCurrentGarrison( prev_garrison - defense_count );
+						// Recompute from scratch (excluding move_army, which
+						// is on its way out) rather than subtracting its
+						// defense_count from the cached total - that total
+						// only reflects idle, non-cargo armies as of this
+						// turn's ComputeCityGarrisons pass, which move_army
+						// may not have been part of, so the subtraction
+						// could underflow (see citydata.cpp's
+						// Assert(value >= 0) in SetCurrentGarrison).
+						RecomputeCityGarrison(city, move_army);
 
 						break;
 					}
@@ -2059,9 +2154,7 @@ bool CtpAi::GetNearestRefuel(const Army & army, const MapPoint & start_pos, MapP
 
 	sint32 num_tiles_to_half;
 	sint32 num_tiles_to_empty;
-	army->CalcRemainingFuel(num_tiles_to_half, num_tiles_to_empty);
-	num_tiles_to_empty /= k_MOVE_AIR_COST;
-	num_tiles_to_half /= k_MOVE_AIR_COST;
+	army->CalcRemainingFuelTiles(num_tiles_to_half, num_tiles_to_empty);
 
 	refueling_distance = -1;
 
@@ -2069,7 +2162,7 @@ bool CtpAi::GetNearestRefuel(const Army & army, const MapPoint & start_pos, MapP
 
 	Unit city;
 	double distance;
-	if (player->GetNearestCity(start_pos, city, distance, false, -1, true))
+	if (player->GetNearestCity(start_pos, city, distance, false, -1, true, army->Num()))
 	{
 		refueling_distance = static_cast<sint32>(distance);
 		refueling_pos = city.RetPos();
@@ -2102,8 +2195,36 @@ bool CtpAi::GetNearestRefuel(const Army & army, const MapPoint & start_pos, MapP
 
 	if (refueling_distance < 0)
 	{
+		// No city (with room), aircraft carrier, or airfield was found at
+		// all - can be a legitimate dead end (e.g. a near-eliminated
+		// player with no cities/carriers/airfields left), not necessarily
+		// a bug. Log the player's actual counts to tell the two apart.
+		DPRINTF(k_DBG_AI,
+			("\tGetNearestRefuel: no refuel destination at all - player %d, army 0x%lx, start (%d,%d), num_tiles_to_half=%d, num_tiles_to_empty=%d, city count=%d\n",
+			 army->GetOwner(), army.m_id, start_pos.x, start_pos.y,
+			 num_tiles_to_half, num_tiles_to_empty,
+			 player->m_all_cities ? player->m_all_cities->Num() : -1));
+
 		bool NO_REFUEL_DESTINATION = false;
 		Assert(NO_REFUEL_DESTINATION);
+		return false;
+	}
+
+	if (!found)
+	{
+		// A city, carrier or airfield was found, but it's farther away
+		// than num_tiles_to_empty - the plane would run dry before
+		// reaching it. Report this as unreachable too, rather than
+		// letting the caller path toward a destination it can never
+		// actually get to.
+		DPRINTF(k_DBG_AI,
+			("\tGetNearestRefuel: nearest destination is out of fuel range - player %d, army 0x%lx, start (%d,%d), refueling_pos (%d,%d), refueling_distance=%d, num_tiles_to_half=%d, num_tiles_to_empty=%d\n",
+			 army->GetOwner(), army.m_id, start_pos.x, start_pos.y,
+			 refueling_pos.x, refueling_pos.y, refueling_distance,
+			 num_tiles_to_half, num_tiles_to_empty));
+
+		bool NO_REFUEL_IN_RANGE = false;
+		Assert(NO_REFUEL_IN_RANGE);
 		return false;
 	}
 	return true;
@@ -2113,9 +2234,7 @@ void CtpAi::RefuelAirplane(const Army & army)
 {
 	sint32 num_tiles_to_half;
 	sint32 num_tiles_to_empty;
-	army->CalcRemainingFuel(num_tiles_to_half, num_tiles_to_empty);
-	num_tiles_to_empty /= k_MOVE_AIR_COST;
-	num_tiles_to_half /= k_MOVE_AIR_COST;
+	army->CalcRemainingFuelTiles(num_tiles_to_half, num_tiles_to_empty);
 
 	MapPoint pos;
 	if (num_tiles_to_half > 0 && army->GetNextPathPoint(pos))
@@ -2144,6 +2263,26 @@ void CtpAi::RefuelAirplane(const Army & army)
 		new_path,
 		total_cost))
 	{
+		Unit refuelCity = g_theWorld->GetCity(refueling_pos);
+
+		// Track repeated failures per army so a single log line shows
+		// whether this is a one-off or the same army stuck retrying the
+		// same failing refuel order turn after turn (the stuck-move-order
+		// pattern already seen for the plain NO_REFUEL_DESTINATION case).
+		static std::map<uint32, std::pair<sint32, sint32> > s_lastFailure; // army id -> (round, consecutive count)
+		sint32 const curRound = g_turn->GetRound();
+		std::pair<sint32, sint32> & entry = s_lastFailure[army.m_id];
+		entry.second = (entry.first == curRound - 1) ? (entry.second + 1) : 1;
+		entry.first = curRound;
+
+		DPRINTF(k_DBG_AI,
+		    ("\tRefuelAirplane: no path to refueling_pos (%d,%d) - player %d, army 0x%lx, start (%d,%d), refueling_distance=%d, num_tiles_to_half=%d, num_tiles_to_empty=%d, cell units there=%d, isCity=%d, cityOwner=%d, consecutive failures=%d\n",
+		     refueling_pos.x, refueling_pos.y, army->GetOwner(), army.m_id, start_pos.x, start_pos.y, refueling_distance,
+		     num_tiles_to_half, num_tiles_to_empty,
+		     g_theWorld->GetCell(refueling_pos)->GetNumUnits(),
+		     refuelCity.IsValid(),
+		     refuelCity.IsValid() ? refuelCity.GetOwner() : -1,
+		     entry.second));
 
 		bool NO_REFUEL_PATH = false;
 		Assert(NO_REFUEL_PATH);

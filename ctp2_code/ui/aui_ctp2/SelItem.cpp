@@ -1857,11 +1857,19 @@ void SelectedItem::ConstructPath(bool &isCircular, double &cost)
 	Army a = m_selected_army[player];
 	MapPoint start;
 	a.GetPos(start);
-	g_theUnitAstar->FindPath(a, start,
-							 player, m_waypoints[0],
-							 *partialPath, m_is_broken_path,
-							 m_bad_path,
-							 partialCost);
+	Assert(g_theUnitAstar);
+	if(g_player[player]->IsHuman())
+	{
+		g_theUnitAstar->FindPath(a, start,
+								 player, m_waypoints[0],
+								 *partialPath, m_is_broken_path,
+								 m_bad_path,
+								 partialCost);
+	}
+	else // For debugging the AI
+	{
+		Agent::FindPath(a, m_waypoints[0], false, *partialPath, partialCost);
+	}
 	m_good_path = partialPath;
 
 	if (m_is_broken_path)
@@ -1892,11 +1900,18 @@ void SelectedItem::ConstructPath(bool &isCircular, double &cost)
 	partialPath = new Path;
 	for(sint32 i = 1; i < m_waypoints.Num(); i++)
 	{
-		g_theUnitAstar->FindPath(a, m_waypoints[i-1],
-								 player, m_waypoints[i],
-								 *partialPath, m_is_broken_path,
-								 m_bad_path,
-								 partialCost);
+		if(g_player[player]->IsHuman())
+		{
+			g_theUnitAstar->FindPath(a, m_waypoints[i-1],
+									 player, m_waypoints[i],
+									 *partialPath, m_is_broken_path,
+									 m_bad_path,
+									 partialCost);
+		}
+		else // For debugging the AI
+		{
+			Agent::FindPath(a, m_waypoints[i], false, *partialPath, partialCost);
+		}
 		m_good_path->Concat(*partialPath);
 		if (m_is_broken_path) {
 			m_good_path->Concat(m_bad_path);
@@ -2599,11 +2614,23 @@ void SelectedItem::EnterMovePath(sint32 owner, Army &army,
 	Path *good_path = new Path, bad_path;
 	bool is_broken;
 	float cost;
-	sint32 r = g_theUnitAstar->FindPath(army, src,
-										owner, dest,
-										*good_path, is_broken,
-										bad_path,
-										cost);
+	bool r = false;
+	Assert(g_theUnitAstar);
+	PLAYER_INDEX player = GetVisiblePlayer();
+	if(g_player[owner]->IsHuman())
+	{
+		r = g_theUnitAstar->FindPath(army, src,
+		                             owner, dest,
+		                             *good_path, is_broken,
+		                             bad_path,
+		                             cost);
+		Assert(m_is_pathing);
+	}
+	else // For debugging the AI
+	{
+		r = Agent::FindPath(army, dest, false, *good_path, cost);
+	}
+
 	if (!r || is_broken)
 	{
 		delete good_path;

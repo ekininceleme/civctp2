@@ -918,7 +918,8 @@ bool World::IsNextToForeigner(const MapPoint &pos, PLAYER_INDEX owner) const
 			Cell * cell = g_theWorld->GetCell(next);
 
 			if(cell->GetNumUnits() > 0
-			&& cell->UnitArmy()->GetOwner() != owner)
+			&& cell->UnitArmy()->GetOwner() != owner
+			&& cell->UnitArmy()->CanAttackOrBombard())
 			{
 				return true;
 			}
@@ -933,7 +934,8 @@ bool World::IsOccupiedByForeigner(const MapPoint &pos, PLAYER_INDEX owner) const
 	Cell * cell = g_theWorld->GetCell(pos);
 
 	return (cell->GetNumUnits() > 0)
-		&& (cell->UnitArmy()->GetOwner() != owner);
+		&& (cell->UnitArmy()->GetOwner() != owner)
+		&& (cell->UnitArmy()->CanAttackOrBombard());
 }
 
 bool World::GetAdjacentOcean(const MapPoint &pos, sint32 & water_cont) const

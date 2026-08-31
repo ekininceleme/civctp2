@@ -152,7 +152,7 @@ void World::GrowWater(MapPoint const & start)
 
     MapPoint       center;
     MapPointNode * finished_list = NULL;
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32         finite_loop   = 0;
 #endif
     MapPoint       test_pos;
@@ -181,7 +181,7 @@ void World::GrowWater(MapPoint const & start)
 			AddToWaterSearch(search_list, test_pos);
     }
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     finite_loop=0;
 #endif
 
@@ -332,7 +332,7 @@ void World::GrowLand(MapPoint const & start)
     MapPoint       test_pos;
     MapPoint       center;
     MapPointNode * finished_list = NULL;
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32         finite_loop   = 0;
 #endif
 
@@ -360,7 +360,7 @@ void World::GrowLand(MapPoint const & start)
 			AddToLandSearch(search_list, test_pos);
     }
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     finite_loop=0;
 #endif
 

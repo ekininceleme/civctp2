@@ -126,7 +126,7 @@ template <class T> void DAPriorityQueue<T>::ShiftUp(const sint32 start_idx)
 
     sint32 current_idx = start_idx;
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32 finite_count=0;
 #endif
     while (1) {
@@ -156,7 +156,7 @@ template <class T> void DAPriorityQueue<T>::ShiftDown(const sint32 start_idx)
 
     sint32 current_idx = start_idx;
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
     sint32 finite_count=0;
 #endif
 

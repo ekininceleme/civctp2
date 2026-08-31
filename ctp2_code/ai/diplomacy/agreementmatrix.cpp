@@ -46,6 +46,7 @@
 #include "MoveFlags.h"
 #include "Diplomat.h"
 #include "radarmap.h"
+#include "SelItem.h"
 
 ai::Agreement       AgreementMatrix::s_badAgreement;
 AgreementMatrix     AgreementMatrix::s_agreements;
@@ -409,6 +410,23 @@ sint32 AgreementMatrix::TurnsAtWar(const PLAYER_INDEX & player,
 		return -1;
 
 
+	if (last_war.end != -1)
+	{
+		// NewTurnCount::GetCurrentRound() reads whichever player is
+		// currently UI-selected, not a global tick - if the selected
+		// player changed between when CancelAgreement stamped .end and
+		// now, this can read a lower round than what was stamped, making
+		// an ordinary cancellation look like a future end turn.
+		DPRINTF(k_DBG_GAMESTATE,
+			("AgreementMatrix::TurnsAtWar: last_war.end (%d) != -1 - player %d (round %d), foreigner %d (round %d), current round %d, selected player %d, last_war.start %d\n",
+			 last_war.end, player,
+			 g_player[player] ? g_player[player]->GetCurRound() : -1,
+			 foreigner,
+			 g_player[foreigner] ? g_player[foreigner]->GetCurRound() : -1,
+			 NewTurnCount::GetCurrentRound(),
+			 g_selected_item ? g_selected_item->GetCurPlayer() : -1,
+			 last_war.start));
+	}
 	Assert(last_war.end == -1);
 
 	return (NewTurnCount::GetCurrentRound() - last_war.start);

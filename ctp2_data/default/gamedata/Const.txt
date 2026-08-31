@@ -407,4 +407,9 @@ BuildRoadsToClosestCities 5
 BaseRoadPriorityVsThreatRank 0.5
 CosiderNumCitiesForSlaves 5
 SmallCityImproveCoeff 1.0
+MoveAirCost 100.0 # move points an air unit spends per tile; also used to convert other units' fuel/movement points into a tile count
+MoveEnterTransportCost 100.0 # move points a land unit spends boarding a transport
+MoveCombatCost 100.0 # move points an air unit spends making a single (non-multi) attack
+DefaultCargoMovePoints 100.0 # assumed cargo move points used to scale transport water cost when there is no cargo yet to ask
+BeeLineMoveCostPerTile 100.0 # assumed move cost per tile for Agent::GetRoundsPrecise's straight-line rounds estimate
 FlashInMilSecs 2000               # Bio and Nano terror flash # If FlashInMilSecs <= 0 no flash is shown

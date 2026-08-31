@@ -117,7 +117,7 @@ void CivArchive::DoubleExpand(size_t ulAmount)
 	Assert(0 < m_ulAllocated);
 	size_t ulSize = m_ulAllocated;
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
 	sint32 finite_loop=0;
 #endif
 

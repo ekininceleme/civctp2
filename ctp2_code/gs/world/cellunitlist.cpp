@@ -60,6 +60,7 @@
 #include "GameEventManager.h"
 #include "TerrainRecord.h"	    // TerrainRecord
 #include "RandGen.h"            // g_rand
+#include "ConstRecord.h"        // g_theConstDB
 
 // Visibility cheat flags
 extern sint32 g_god;
@@ -746,7 +747,7 @@ bool CellUnitList::IsMovePointsEnough(const MapPoint &pos) const
 	if (GetMovementTypeAir())
 	{
 		// Prevent ships from diving under and using tunnels.
-		cost = k_MOVE_AIR_COST;
+		cost = g_theConstDB->Get(0)->GetMoveAirCost();
 	}
 	else if (g_theWorld->IsTunnel(pos) && !GetMovementTypeLand())
 	{
@@ -1298,6 +1299,40 @@ bool CellUnitList::IsCivilian() const
 			return false;
 	}
 	return true;
+}
+
+//----------------------------------------------------------------------------
+//
+// Name       : CellUnitList::CanAttackOrBombard
+//
+// Description: Returns true if at least one unit in the list has a non-zero
+//              attack value or is able to bombard. A foreign army for which
+//              this is false (e.g. an unescorted transport) cannot actually
+//              hurt anything and should not be treated as a combat threat.
+//
+// Parameters : -
+//
+// Globals    : -
+//
+// Returns    : bool
+//
+// Remark(s)  : -
+//
+//----------------------------------------------------------------------------
+bool CellUnitList::CanAttackOrBombard() const
+{
+	for(sint32 i = 0; i < m_nElements; i++)
+	{
+		const UnitRecord * rec = m_array[i].GetDBRec();
+		if (rec->GetAttack() > 0.0
+		||  rec->GetCanBombardLand()
+		||  rec->GetCanBombardWater()
+		||  rec->GetCanBombardAir())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 //----------------------------------------------------------------------------

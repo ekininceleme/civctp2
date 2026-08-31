@@ -57,6 +57,7 @@
 
 #include "TerrainRecord.h"
 #include "UnitData.h"
+#include "ConstRecord.h"        // g_theConstDB
 
 #include "UnseenCell.h"
 #include "wonderutil.h"
@@ -154,7 +155,7 @@ bool UnitAstar::StraightLine
 float UnitAstar::ComputeValidMoveCost(const MapPoint & pos, const Cell & cell) const
 {
 	if (m_move_intersection & k_Unit_MovementType_Air_Bit) {
-		return k_MOVE_AIR_COST;
+		return static_cast<float>(g_theConstDB->Get(0)->GetMoveAirCost());
 	}
 
 	bool const is_tunnel_and_boat = g_theWorld->IsTunnel(pos) &&
@@ -290,7 +291,7 @@ bool UnitAstar::CheckUnits(
 				{
 					if (CanMoveIntoTransports(m_dest))
 					{
-						cost = k_MOVE_ENTER_TRANSPORT_COST;
+						cost = static_cast<float>(g_theConstDB->Get(0)->GetMoveEnterTransportCost());
 						entry = ASTAR_CAN_ENTER;
 						can_enter = true;
 						return true;
@@ -528,7 +529,7 @@ bool UnitAstar::CheckMoveIntersection(const MapPoint & prev, const MapPoint & po
 {
 	if (m_move_intersection & k_Unit_MovementType_Air_Bit)
 	{
-		cost = k_MOVE_AIR_COST;
+		cost = static_cast<float>(g_theConstDB->Get(0)->GetMoveAirCost());
 		can_enter = true;
 	}
 	else if (the_pos_cell.CanEnter(m_move_intersection))
@@ -668,7 +669,7 @@ float UnitAstar::EstimateFutureCost(const MapPoint &pos, const MapPoint &dest)
 {
 	if (m_move_intersection & k_Unit_MovementType_Air_Bit)
 	{
-		return static_cast<float>(k_MOVE_AIR_COST * pos.NormalizedDistance(dest));
+		return static_cast<float>(g_theConstDB->Get(0)->GetMoveAirCost() * pos.NormalizedDistance(dest));
 	}
 
 	return Astar::EstimateFutureCost(pos, dest);
@@ -1191,10 +1192,11 @@ bool UnitAstar::FindPath(
 	if (searchSucceeded) {
 		result = true;
 	} else {
-		DPRINTF(k_DBG_ASTAR, ("PATHFIND_DIAG: UnitAstar::FindPath failed from (%d,%d) to (%d,%d): %s\n",
+		DPRINTF(k_DBG_ASTAR, ("PATHFIND_DIAG: UnitAstar::FindPath failed from (%d,%d) to (%d,%d): %s, army 0x%lx move_union 0x%x move_intersection 0x%x\n",
 		                                 start.x, start.y, dest.x, dest.y,
 		                                 pretestPassed ? "PretestDest passed, full A* search failed"
-		                                               : "rejected by PretestDest before searching"));
+		                                               : "rejected by PretestDest before searching",
+		                                 m_army.m_id, move_union, move_intersection));
 		if (no_bad_path) {
 			result = false;
 		} else {
@@ -1289,7 +1291,7 @@ bool UnitAstar::CheckIsDangerForPos(const MapPoint & pos)
 		//Check for hostile army
 		CellUnitList * the_army = g_theWorld->GetArmyPtr(neighbor);
 
-		if (the_army && !the_army->IsCivilian())
+		if (the_army && the_army->CanAttackOrBombard())
 		{
 			const PLAYER_INDEX owner     = the_army->GetOwner();
 			const bool         isVisible = m_army->IsVisible(owner);

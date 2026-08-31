@@ -933,7 +933,7 @@ void TurnCount::NextRound(BOOL fromDirector, BOOL force)
 		g_noai_stop_player = g_selected_item->GetCurPlayer();
 	}
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(USE_LOGGING)
 sint32 finite_count=0;
 #endif
 

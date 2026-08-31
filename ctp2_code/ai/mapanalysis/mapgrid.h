@@ -38,6 +38,7 @@
 #include <sstream>
 
 #include "c3debugstl.h"
+#include "c3debug.h"
 
 #include "MapPoint.h"
 
@@ -61,9 +62,19 @@ public:
 
 	~MapGrid()
 	{
-		s_scratch.resize(0);
+		// A same-size (including 0 to 0) resize can still go through a
+		// delete[]/new[] cycle in some valarray implementations, and this
+		// project's operator new asserts against zero-size allocations -
+		// so only resize down when there is actually something to free.
+		if (s_scratch.size() != 0)
+		{
+			s_scratch.resize(0);
+		}
 
-		m_values.resize(0);	// no free in valarray, and this is not really needed anyway
+		if (m_values.size() != 0)
+		{
+			m_values.resize(0);	// no free in valarray, and this is not really needed anyway
+		}
 	}
 
 	void Resize(const sint32 & xSize,
@@ -84,7 +95,27 @@ public:
 		if (ySize / resolution != 0)
 			m_yGridSize += 1;
 
-		m_values.resize( m_xGridSize * m_yGridSize );
+		// Same reasoning as Cleanup()/~MapGrid(): a same-size resize (0 to
+		// 0 in particular, e.g. when called before the world has valid
+		// dimensions) can still trigger a zero-size allocation in some
+		// valarray implementations, which this project's operator new
+		// asserts against. Clear() (called by every caller of Resize())
+		// already zeroes whatever is there, so skipping a no-op resize
+		// changes nothing else.
+		size_t const newSize =
+		    static_cast<size_t>(m_xGridSize) * static_cast<size_t>(m_yGridSize);
+
+		if (newSize == 0)
+		{
+			DPRINTF(k_DBG_AI,
+			    ("MapGrid::Resize: computed a zero-size grid - xSize=%d ySize=%d resolution=%d xGridSize=%d yGridSize=%d oldValuesSize=%zu\n",
+			     xSize, ySize, resolution, m_xGridSize, m_yGridSize, m_values.size()));
+		}
+
+		if (newSize != m_values.size())
+		{
+			m_values.resize(newSize);
+		}
 	}
 
 	void Clear()
@@ -102,7 +133,14 @@ public:
 	void Cleanup()
 	{
 		Clear();
-		m_values.resize(0);
+
+		// Same reasoning as the destructor: avoid resize(0) when already
+		// empty, since that can still trigger a zero-size allocation in
+		// some valarray implementations.
+		if (m_values.size() != 0)
+		{
+			m_values.resize(0);
+		}
 	}
 
 	void AddValue(const MapPoint &rc_pos, const _Ty & value)
