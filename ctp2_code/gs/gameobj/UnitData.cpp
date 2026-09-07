@@ -1016,6 +1016,20 @@ bool UnitData::CanThisCargoUnloadAt
 		return false;
 	}
 
+	if (    the_dest->HasCity()
+	     && g_theWorld->IsWater(unload_pos)
+	     && !GetDBRec()->GetIsSubmarine()
+	   )
+	{
+		// Only a submarine transport (e.g. the Crawler) can deliver land
+		// units directly into an underwater city - see
+		// Great_Library.txt's UNIT_CRAWLER_GAMEPLAY entry and
+		// https://github.com/civctp2/civctp2/issues/334. This is about
+		// the transport itself, not the cargo, so it's independent of
+		// the CantCaptureCity check above.
+		return false;
+	}
+
 	return g_theWorld->CanEnter(unload_pos, the_cargo.GetMovementType());
 }
 

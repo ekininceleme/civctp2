@@ -1651,29 +1651,9 @@ sint32 TiledMap::CalculateWrap
 		AddDirtyToMap(x, y, GetZoomTilePixelWidth(), GetZoomTileGridHeight());
 	}
 
-	if (g_graphicsOptions)
-	{
-		if (g_graphicsOptions->IsCellTextOn())
-		{
-			CellText *cellText = g_graphicsOptions->GetCellText(pos);
-			if (cellText != NULL)
-			{
-				sint32 r,g,b;
-				ColorMagnitudeToRGB(cellText->m_color, &r, &g, &b);
-
-				COLORREF fgColor = RGB(r, g, b);
-				COLORREF bgColor = RGB(0, 0, 0);
-
-				DrawSomeText(false,
-							 cellText->m_text,
-							 x + GetZoomTilePixelWidth()/2,
-							 y + GetZoomTilePixelHeight(),
-							 bgColor,
-							 fgColor
-							);
-			}
-		}
-	}
+	// Cell text (e.g. /showconts) is drawn later, in RepaintCellText, so
+	// it paints on top of tile improvements/tunnels/city sprites instead
+	// of being covered by them.
 
 #if defined(_DEBUG) && defined(CELL_COLOR)
 
@@ -1927,6 +1907,63 @@ void TiledMap::RepaintImprovements(const RECT & repaintRect, bool clip)
 					DrawImprovements(NULL,i,j,0);
 				}
 			}
+		}
+	}
+}
+
+// Draws debug cell text (e.g. /showconts) on top of whatever RepaintTiles
+// and RepaintImprovements already painted for this rect, instead of being
+// covered by tile improvements/tunnels/city sprites drawn afterward.
+void TiledMap::RepaintCellText(const RECT & repaintRect)
+{
+	if (!g_graphicsOptions || !g_graphicsOptions->IsCellTextOn())
+		return;
+
+	sint32		mapWidth, mapHeight;
+	GetMapMetrics(&mapWidth,&mapHeight);
+
+	for (sint32 i = repaintRect.top; i < repaintRect.bottom; i++){
+		if (!g_theWorld->IsYwrap() && (i < 0 || i >= mapHeight))
+			continue;
+
+		for (sint32 j = repaintRect.left; j < repaintRect.right; j++) {
+			if (!g_theWorld->IsXwrap() && (j < 0 || j >= mapWidth))
+				continue;
+
+			sint32 wrapJ = j, wrapI = i;
+			maputils_WrapPoint(wrapJ, wrapI, &wrapJ, &wrapI);
+			MapPoint pos(maputils_TileX2MapX(wrapJ, wrapI), wrapI);
+
+			if (!ReadyToDraw() || !m_localVision->IsExplored(pos))
+				continue;
+
+			sint32 x, y;
+			maputils_MapXY2PixelXY(pos.x, pos.y, &x, &y);
+
+			if (    (x < m_surfaceRect.left)
+			     || (x > (m_surfaceRect.right - GetZoomTilePixelWidth()))
+			     || (y < m_surfaceRect.top)
+			     || (y > (m_surfaceRect.bottom - (GetZoomTilePixelHeight() + GetZoomTileHeadroom())))
+			   )
+				continue;
+
+			CellText *cellText = g_graphicsOptions->GetCellText(pos);
+			if (cellText == NULL)
+				continue;
+
+			sint32 r,g,b;
+			ColorMagnitudeToRGB(cellText->m_color, &r, &g, &b);
+
+			COLORREF fgColor = RGB(r, g, b);
+			COLORREF bgColor = RGB(0, 0, 0);
+
+			DrawSomeText(false,
+						 cellText->m_text,
+						 x + GetZoomTilePixelWidth()/2,
+						 y + GetZoomTilePixelHeight(),
+						 bgColor,
+						 fgColor
+						);
 		}
 	}
 }
@@ -3178,6 +3215,7 @@ sint32 TiledMap::Refresh(void)
 	}
 
 	RepaintImprovements(m_mapViewRect);
+	RepaintCellText(m_mapViewRect);
 
 	UnlockSurface();
 
@@ -3440,6 +3478,7 @@ bool TiledMap::ScrollMap(sint32 deltaX, sint32 deltaY)
 	RepaintHats(inflatedRepaintRect);
 	RepaintBorders(inflatedRepaintRect);
 	RepaintImprovements(inflatedRepaintRect);
+	RepaintCellText(inflatedRepaintRect);
 
 	UnlockSurface();
 
@@ -3575,6 +3614,7 @@ bool TiledMap::ScrollMapSmooth(sint32 pdeltaX, sint32 pdeltaY)
 	RepaintHats(inflatedRepaintRect);
 	RepaintBorders(inflatedRepaintRect);
 	RepaintImprovements(inflatedRepaintRect);
+	RepaintCellText(inflatedRepaintRect);
 
 	UnlockSurface();
 

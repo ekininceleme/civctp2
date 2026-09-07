@@ -80,13 +80,12 @@ STDEHANDLER(BeginTurnEvent)
 
 	CtpAi::BeginDiplomacy(player, round);
 
-	if(g_theProfileDB->IsAIOn() && (!g_network.IsClient()))
-	{
-		g_gevManager->AddEvent(GEV_INSERT_Tail, GEV_AiBeginTurn,
-		                       GEA_Player,      player,
-		                       GEA_End
-		                      );
-	}
+	// GEV_AiBeginTurn is now queued from AIFinishBeginTurnEvent
+	// (PlayerEvent.cpp), at the end of the FinishBeginTurn -> ... ->
+	// AIFinishBeginTurn relay chain, instead of eagerly here. Queuing it
+	// this early would place it ahead of this turn's tile-improvement
+	// completion events in the FIFO, so the AI scheduler would run before
+	// tunnels built this turn are applied - see the comment there.
 
 	g_gevManager->AddEvent(GEV_INSERT_Tail, GEV_ResumeEmailAndHotSeatDiplomacy,
 	                       GEA_Player,      player,

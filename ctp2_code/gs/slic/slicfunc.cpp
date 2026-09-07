@@ -3529,12 +3529,12 @@ SFN_ERROR Slic_CreateCity::Call(SlicArgList *args)
 	static DynamicArray<MapPoint> legalPoints;
 	legalPoints.Clear();
 
-	sint16 origContinent = g_theWorld->GetContinent(pos);
+	sint16 origContinent = g_theWorld->GetContinent(pos).GetLandContinent();
 
 	for(x = 0; x < g_theWorld->GetXWidth(); x++) {
 		for(y = 0; y < g_theWorld->GetYHeight(); y++) {
 			MapPoint chk(x, y);
-			if(g_theWorld->GetContinent(chk) == origContinent &&
+			if(g_theWorld->GetContinent(chk).GetLandContinent() == origContinent &&
 			   !g_theWorld->IsNextToCity(chk) &&
 			   !g_theWorld->IsCity(chk)) {
 				legalPoints.Insert(chk);
@@ -3629,7 +3629,7 @@ SFN_ERROR Slic_CreateCoastalCity::Call(SlicArgList *args)
 	static DynamicArray<MapPoint> legalPoints;
 	legalPoints.Clear();
 
-	sint16 origContinent = g_theWorld->GetContinent(pos);
+	ContinentIDs origContinent = g_theWorld->GetContinent(pos);
 
 	for(x = 0; x < g_theWorld->GetXWidth(); x++) {
 		for(y = 0; y < g_theWorld->GetYHeight(); y++) {
@@ -7140,7 +7140,7 @@ SFN_ERROR Slic_GetContinent::Call(SlicArgList *args)
 	if(!args->GetPos(0, pos))
 		return SFN_ERROR_TYPE_ARGS;
 
-	m_result.m_int = g_theWorld->GetContinent(pos);
+	m_result.m_int = g_theWorld->GetContinent(pos).GetLandContinent();
 
 	return SFN_ERROR_OK;
 }
@@ -7170,10 +7170,10 @@ SFN_ERROR Slic_GetContinentSize::Call(SlicArgList *args)
 		return SFN_ERROR_TYPE_ARGS;
 
 	if(g_theWorld->IsWater(pos)){
-		m_result.m_int = g_theWorld->GetWaterContinentSize(g_theWorld->GetContinent(pos));
+		m_result.m_int = g_theWorld->GetWaterContinentSize(g_theWorld->GetContinent(pos).GetWaterContinent());
 	}
 	else{
-		m_result.m_int = g_theWorld->GetLandContinentSize(g_theWorld->GetContinent(pos));
+		m_result.m_int = g_theWorld->GetLandContinentSize(g_theWorld->GetContinent(pos).GetLandContinent());
 	}
 
 	return SFN_ERROR_OK;

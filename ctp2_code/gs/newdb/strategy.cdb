@@ -276,9 +276,9 @@ Strategy {
 	Bit (Record UnitBuildList) FreightUnitList
 
 	// Minimum number of units to keep in cities as a garrison
-	Bit (Int) OffensiveGarrisonCount
-	Bit (Int) DefensiveGarrisonCount
-	Bit (Int) RangedGarrisonCount
+	Bit (Int) OffensiveGarrisonCount = 0
+	Bit (Int) DefensiveGarrisonCount = 0
+	Bit (Int) RangedGarrisonCount = 0
 
 	// Additional units to reserve for garrison if the force match requires that
 	Int AdditionalGarrisonUnitsIfNeeded = 0

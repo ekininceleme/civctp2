@@ -3001,7 +3001,7 @@ void Governor::ComputeDesiredUnits()
 		switch (list_num)
 		{
 		case BUILD_UNIT_LIST_OFFENSE:
-			(void) strategy.GetOffensiveGarrisonCount(garrison_count);
+			garrison_count = strategy.GetOffensiveGarrisonCount();
 			m_buildUnitList[list_num].m_perCityGarrison =
 				static_cast<sint16>(garrison_count);
 			m_buildUnitList[list_num].m_maximumGarrisonCount =
@@ -3011,7 +3011,7 @@ void Governor::ComputeDesiredUnits()
 			break;
 
 		case BUILD_UNIT_LIST_DEFENSE:
-			(void) strategy.GetDefensiveGarrisonCount(garrison_count);
+			garrison_count = strategy.GetDefensiveGarrisonCount();
 			m_buildUnitList[list_num].m_perCityGarrison =
 				static_cast<sint16>(garrison_count);
 			m_buildUnitList[list_num].m_maximumGarrisonCount =
@@ -3021,7 +3021,7 @@ void Governor::ComputeDesiredUnits()
 			break;
 
 		case BUILD_UNIT_LIST_RANGED:
-			(void) strategy.GetRangedGarrisonCount(garrison_count);
+			garrison_count = strategy.GetRangedGarrisonCount();
 			m_buildUnitList[list_num].m_perCityGarrison =
 				static_cast<sint16>(garrison_count);
 			m_buildUnitList[list_num].m_maximumGarrisonCount =
@@ -3254,9 +3254,9 @@ void Governor::ComputeDesiredUnits()
 		if (!unit.IsValid())
 			continue;
 
-		strategy.GetOffensiveGarrisonCount(desired_offense);
-		strategy.GetDefensiveGarrisonCount(desired_defense);
-		strategy.GetRangedGarrisonCount(desired_ranged);
+		desired_offense = strategy.GetOffensiveGarrisonCount();
+		desired_defense = strategy.GetDefensiveGarrisonCount();
+		desired_ranged  = strategy.GetRangedGarrisonCount();
 
 		unit->GetPos(pos);
 		CellUnitList *  units_ptr   = g_theWorld->GetArmyPtr(pos);

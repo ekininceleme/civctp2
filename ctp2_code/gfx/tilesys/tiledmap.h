@@ -222,6 +222,7 @@ public:
 	void			RepaintTilesClipped(const RECT & repaintRect);
 
 	void			RepaintImprovements(const RECT & repaintRect, bool clip=false);
+	void			RepaintCellText(const RECT & repaintRect);
 	void			RepaintHats(const RECT & repaintRect, bool clip=false);
 	void			RepaintBorders(const RECT & repaintRect, bool clip=false);
 	void			RepaintEdgeX(const RECT & repaintRect);

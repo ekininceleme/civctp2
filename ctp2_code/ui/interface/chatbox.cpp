@@ -786,8 +786,8 @@ BOOL ChatWindow::CheckForEasterEggs(const MBCHAR *s)
 			{
 				for (pos.y = 0; pos.y < g_theWorld->GetHeight(); pos.y++)
 				{
-					char buf[10];
-					sprintf(buf, "%d", g_theWorld->GetCell(pos)->GetContinent());
+					char buf[30];
+					sprintf(buf, "%d / %d", g_theWorld->GetCell(pos)->GetLandContinent(), g_theWorld->GetCell(pos)->GetWaterContinent());
 					g_graphicsOptions->AddTextToCell(pos, buf, 255);
 				}
 			}

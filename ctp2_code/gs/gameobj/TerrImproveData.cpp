@@ -100,6 +100,16 @@ BOOL TerrainImprovementData::Complete(void)
 	if(!rec->GetClassTerraform() && !rec->GetClassOceanform())
 	{
 		theCell->InsertDBImprovement(m_type);
+
+		if(rec->GetClassOceanRoad())
+		{
+			// This fires once per improvement completion anywhere in a
+			// player's territory, potentially many times in one turn (a lot
+			// more than the number of cities founded that turn), so defer
+			// the renumber to the next turn boundary instead of doing a
+			// full map recompute for every single tunnel.
+			g_theWorld->MarkContinentsDirty();
+		}
 	}
 	else
 	{

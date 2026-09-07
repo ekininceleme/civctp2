@@ -2037,12 +2037,9 @@ void CtpAi::ComputeCityGarrisons(const PLAYER_INDEX playerId )
 	const StrategyRecord & strategy =
 		Diplomat::GetDiplomat(playerId).GetCurrentStrategy();
 
-	sint32 offensive_garrison;
-	sint32 defensive_garrison;
-	sint32 ranged_garrison;
-	strategy.GetOffensiveGarrisonCount(offensive_garrison);
-	strategy.GetDefensiveGarrisonCount(defensive_garrison);
-	strategy.GetRangedGarrisonCount(ranged_garrison);
+	sint32 offensive_garrison = strategy.GetOffensiveGarrisonCount();
+	sint32 defensive_garrison = strategy.GetDefensiveGarrisonCount();
+	sint32 ranged_garrison    = strategy.GetRangedGarrisonCount();
 	sint32 min_garrison = offensive_garrison + defensive_garrison + ranged_garrison;
 
 	const StrategyRecord::ForceMatch *  force_match;
@@ -2190,6 +2187,7 @@ bool CtpAi::GetNearestRefuel(const Army & army, const MapPoint & start_pos, MapP
 		{
 			refueling_distance = static_cast<sint32>(distance);
 			refueling_pos = tmp_pos;
+			found = (refueling_distance < num_tiles_to_empty);
 		}
 	}
 

@@ -33,6 +33,7 @@
 #define __ROBOT_ASTAR2_H__ 1
 
 #include "UnitAstar.h"
+#include "Cell.h"
 
 class RobotAstar2 : public UnitAstar
 {
@@ -96,7 +97,7 @@ private:
 	                     ASTAR_ENTRY_TYPE &new_entry);
 
 	PathType m_pathType;
-	sint32 m_transDestCont;
+	ContinentIDs m_transDestCont;
 	float m_transMaxR;
 	uint32 m_incursionPermission;
 };

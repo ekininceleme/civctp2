@@ -1713,12 +1713,11 @@ void Goal::Compute_Needed_Troop_Flow()
 			const StrategyRecord & strategy =
 				Diplomat::GetDiplomat(m_playerId).GetCurrentStrategy();
 
-			sint32 offensive_garrison = 1; // Have at least one unit as garrison if this is not defined in strategies.txt
-			sint32 defensive_garrison = 0;
-			sint32 ranged_garrison    = 0;
-			strategy.GetOffensiveGarrisonCount(offensive_garrison);
-			strategy.GetDefensiveGarrisonCount(defensive_garrison);
-			strategy.GetRangedGarrisonCount(ranged_garrison);
+			// Have at least one unit as garrison if this is not defined in strategies.txt
+			sint32 offensive_garrison = strategy.HasOffensiveGarrisonCount()
+			                          ? strategy.GetOffensiveGarrisonCount() : 1;
+			sint32 defensive_garrison = strategy.GetDefensiveGarrisonCount();
+			sint32 ranged_garrison    = strategy.GetRangedGarrisonCount();
 
 			// Why only defensive units?
 			// Added ranged units - Calvitix
@@ -3890,7 +3889,18 @@ bool Goal::FollowPathToTask( Agent_ptr first_army,
 
 			if
 			  (
-			       first_army->Get_Army()->GetMovementTypeAir()
+			       (    first_army->Get_Army()->GetMovementTypeAir()
+			         // Sea transporters can't themselves enter a foreign
+			         // water-tile city, so for an underwater
+			         // target its cargo needs the same "carrier can't, cargo
+			         // can" handling air transporters already get: Unload
+			         // before the destination and let the cargo continue on foot
+			         // via any tunnel connection. Left scoped to water
+			         // targets only - a land target's full path stays
+			         // unsnipped, which is still useful to see on the map
+			         // for debugging.
+			         ||  g_theWorld->IsWater(dest_pos)
+			       )
 			   && !first_army->Get_Army()->TestOrderAny(order_rec)
 			   &&  first_army->Get_Army()->TestCargoOrderAny(order_rec)
 			  )
@@ -4039,7 +4049,7 @@ bool Goal::GotoTransportTaskSolution(Agent_ptr the_army, Agent_ptr the_transport
 	{
 		MapPoint start_pos = the_army->Get_Pos();
 
-		sint16 cargo_cont = g_theWorld->GetContinent(start_pos); // Dangerous with transport target can be closer
+		sint16 cargo_cont = g_theWorld->GetContinent(start_pos).GetLandContinent(); // Dangerous with transport target can be closer
 
 		Unit nearest_city;
 		MapPoint nearest_airfield;
@@ -4438,7 +4448,7 @@ bool Goal::GotoGoalTaskSolution(Agent_ptr the_army, MapPoint & goal_pos)
 	&& the_army->Get_Army()->GetMovementTypeAir()
 	&& the_army->Get_Army()->CanSpaceLaunch()
 	){
-		sint16 target_cont = g_theWorld->GetContinent(goal_pos);
+		sint16 target_cont = g_theWorld->GetContinent(goal_pos).GetLandContinent();
 
 		Unit   nearest_city;
 		double city_distance = 0.0;
@@ -5376,6 +5386,17 @@ bool Goal::FindTransporters(const Agent_ptr & agent_ptr, std::list< std::pair<Ut
 {
 	std::pair<Utility, Agent_ptr> transporter;
 
+	// A target city that's on water with no adjacent land or tunnel tile
+	// can't be reached by a regular transport at all - CanThisCargoUnloadAt
+	// rejects a non-submarine transport trying to unload directly into
+	// such a city (see issue civctp2/civctp2#334). Only consider
+	// submarine-class transports (e.g. the Crawler) for it.
+	MapPoint const targetPos = Get_Target_Pos();
+	bool const needsSubmarineTransport =
+	    g_theWorld->HasCity(targetPos)
+	 && g_theWorld->IsWater(targetPos)
+	 && !g_theWorld->HasAdjacentFreeLand(targetPos, m_playerId);
+
 	for
 	(
 	    Agent_List::iterator agent_iter  = m_agents.begin();
@@ -5411,6 +5432,23 @@ bool Goal::FindTransporters(const Agent_ptr & agent_ptr, std::list< std::pair<Ut
 		if(!possible_transport->CanReachTargetContinent(Get_Target_Pos()))
 		{
 			continue;
+		}
+
+		if(needsSubmarineTransport)
+		{
+			bool hasSubmarine = false;
+			Army const & transportArmy = possible_transport->Get_Army();
+			for(sint32 i = 0; i < transportArmy.Num(); ++i)
+			{
+				if(transportArmy.Get(i).IsSubmarine())
+				{
+					hasSubmarine = true;
+					break;
+				}
+			}
+
+			if(!hasSubmarine)
+				continue;
 		}
 
 		Utility  utility         = Goal::BAD_UTILITY;

@@ -17,6 +17,11 @@ AC_PROG_CXX(cl g++ gcc cxx c++ cc++ KCC CC egcs)
 AX_CXX_COMPILE_STDCXX_11(noext, mandatory)
 LT_INIT
 AC_LANG(C++)
+dnl ui/ldl/ldl.l defines its own yywrap(), so it doesn't need libfl's.
+dnl Call AC_PROG_LEX with the argument ourselves before AM_PROG_LEX,
+dnl since this automake version's AM_PROG_LEX still AC_REQUIREs the
+dnl argument-less (obsolete) form.
+AC_PROG_LEX([noyywrap])
 AM_PROG_LEX
 dnl AC_PROG_YACC
 AC_PATH_PROG(YACC,byacc,no)
@@ -130,7 +135,7 @@ if test x$enable_debug = xyes  || test x$enable_debug = xfull; then
 	AC_DEFINE(_DEBUG_MEMORY,1,[Enable the leak reporter])# _DEBUG requires this
 fi
 AM_CONDITIONAL([DEBUG], [test "x$enable_debug" != "xno"])# for conditional block in Makefile.am
-AM_CONDITIONAL([LOGGING], [test "x$enable_looging" != "xno"])# for conditional block in Makefile.am
+AM_CONDITIONAL([LOGGING], [test "x$enable_logging" != "xno"])# for conditional block in Makefile.am
 AM_CONDITIONAL([PROFILE], [test "x$enable_profile" != "xno"])# for conditional block in Makefile.am
 
 
@@ -153,7 +158,7 @@ fi
 AM_CONDITIONAL(INTERNAL_ANET, test x$enable_anet == xno)
 
 AC_ARG_ENABLE([precisetraderoutecalc],
-              AC_HELP_STRING([--enable-precisetraderoutecalc],[enable precise (but slower) trade route calculation]),,
+              AS_HELP_STRING([--enable-precisetraderoutecalc],[enable precise (but slower) trade route calculation]),,
 	      [enable_precisetraderoutecalc=no])
 if test x$enable_precisetraderoutecalc = xyes; then
 	AC_DEFINE(USE_PRECISETRADEROUTECALC,1,[enable precise (but slower) trade route calculation])

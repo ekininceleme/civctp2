@@ -329,6 +329,11 @@ void TurnCount::BeginNewRound()
 	m_activePlayers = 0;
 	sint32 i;
 
+	// Collapse any tunnel/canal improvements placed since the last round
+	// (CityData::SetRoad, TerrainImprovementData::Complete) into a single
+	// renumber here, instead of one full map recompute per improvement.
+	g_theWorld->FlushContinentsIfDirty();
+
 	m_round++;
 
 #ifdef _DEBUG

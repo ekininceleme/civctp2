@@ -125,6 +125,7 @@ class World : public CityRadiusCallback
     sint32 m_isYwrap;
     sint32 m_isXwrap;
     BOOL m_continents_are_numbered;
+    BOOL m_continents_dirty;
 
     MAP_GENERATOR m_mapGenerator;
 
@@ -304,8 +305,10 @@ public:
 
 
 
-    sint16 GetContinent(const MapPoint & pos) const;
+    ContinentIDs GetContinent(const MapPoint & pos) const;
     bool IsOnSameContinent(const MapPoint & pos1, const MapPoint & pos2) const;
+    bool IsWaterContinent(const MapPoint & pos) const { return GetCell(pos)->IsWaterContinent(); }
+    bool IsLandContinent (const MapPoint & pos) const { return GetCell(pos)->IsLandContinent();  }
 
     sint16 GetMinWaterContinent() const;
     sint16 GetMaxWaterContinent() const;
@@ -315,14 +318,30 @@ public:
     void NumberContinents();
     void InitContinent();
 
+    // A tunnel/canal improvement placed away from a city founding (e.g. via
+    // the public-works construction queue in TerrainImprovementData::Complete,
+    // or a city's own free road refresh in CityData::SetRoad) can fire many
+    // times in a single turn - renumbering the whole map on every one of
+    // those would be wasteful. Callers mark continents dirty instead, and
+    // FlushContinentsIfDirty collapses any number of them into a single
+    // recompute at the next turn boundary. City founding itself still calls
+    // NumberContinents directly, since AI scheduling in the same cycle
+    // depends on up to date continent data right away.
+    void MarkContinentsDirty() { m_continents_dirty = TRUE; }
+    void FlushContinentsIfDirty()
+    {
+        if(m_continents_dirty)
+        {
+            NumberContinents();
+        }
+    }
+
     void GrowOceans();
     bool IsNewWater(MapPoint const & p) const;
     void GrowWater(MapPoint const & start);
 
     bool NextPoint(MapPointNode *& search_list, MapPointNode *&finished_list,
         MapPoint & p);
-
-    void ResetCanalsTunnels();
 
     void GrowContinents();
     bool IsNewLand(MapPoint const & p) const;

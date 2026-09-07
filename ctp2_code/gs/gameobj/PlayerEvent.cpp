@@ -704,6 +704,28 @@ STDEHANDLER(AIFinishBeginTurnEvent)
 
 	CtpAi::FinishBeginTurn(player);
 
+	// Every event queued with GEV_INSERT_Tail while this turn's begin-turn
+	// chain (BeginTurnImprovements -> ... -> FinishBeginTurn -> ... ->
+	// here) was still pending gets appended behind it and so is processed
+	// before it - including the ImprovementAddTurn/ImprovementComplete
+	// events that build this turn's tile improvements. So by the time this
+	// handler runs, any tunnel placed this turn is already applied, making
+	// this the right point to flush continents before the AI scheduler
+	// looks at the map. Queuing GEV_AiBeginTurn here instead of eagerly up
+	// front (as TurnCntEvent.cpp's BeginTurnEvent used to, right after
+	// Player::BeginTurn() returns) is what guarantees that ordering, since
+	// a relay-queued event can't be created - let alone processed - before
+	// its predecessor in the chain actually runs.
+	g_theWorld->FlushContinentsIfDirty();
+
+	if(g_theProfileDB->IsAIOn() && (!g_network.IsClient()))
+	{
+		g_gevManager->AddEvent(GEV_INSERT_Tail, GEV_AiBeginTurn,
+		                       GEA_Player,      player,
+		                       GEA_End
+		                      );
+	}
+
 	return GEV_HD_Continue;
 }
 

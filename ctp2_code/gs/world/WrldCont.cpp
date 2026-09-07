@@ -39,12 +39,10 @@
 #include "MoveFlags.h"
 #include "Unit.h"
 
-#define INVALID_CONTINENT -2
-#define SEARCHING_CONTINENT -1
 #define WATER_CONTINENT_START 0
 #define LAND_CONTINENT_START 16000
 
-sint16 World::GetContinent(const MapPoint & pos) const
+ContinentIDs World::GetContinent(const MapPoint & pos) const
 {
     return GetCell(pos)->GetContinent();
 }
@@ -70,43 +68,14 @@ struct MapPointNode
     MapPointNode *  next;
 };
 
-struct Old_Cont_Node
-{
-    Old_Cont_Node
-    (
-        MapPoint const &     a_Pos,
-        Old_Cont_Node *      a_Next      = NULL,
-        sint32               a_Continent = INVALID_CONTINENT
-    )
-    :
-        m_pos       (a_Pos),
-        m_old_cont  (a_Continent),
-        m_next      (a_Next)
-    { };
-
-    MapPoint        m_pos;
-    sint32          m_old_cont;
-    Old_Cont_Node * m_next;
-};
-
-Old_Cont_Node * g_tunnel_list   = NULL;
-
 void World::NumberContinents()
 {
     InitContinent();
     GrowOceans();
-    ResetCanalsTunnels();
     GrowContinents();
 
     m_continents_are_numbered=TRUE;
-
-    while (g_tunnel_list)
-    {
-        Old_Cont_Node * del_me = g_tunnel_list;
-        g_tunnel_list = g_tunnel_list->m_next;
-        GetCell(del_me->m_pos)->SetContinent((sint16)del_me->m_old_cont);
-        delete del_me;
-    }
+    m_continents_dirty=FALSE;
 
     FindContinentNeighbors();
     FindContinentSize();
@@ -126,7 +95,7 @@ void World::InitContinent()
     MapPoint p;
     for (p.x = 0; p.x <m_size.x; p.x++) {
         for (p.y = 0; p.y <m_size.y; p.y++) {
-            GetCell(p)->SetContinent(INVALID_CONTINENT);
+            GetCell(p)->InvalidateContinent();
         }
     }
 }
@@ -191,7 +160,7 @@ void World::GrowWater(MapPoint const & start)
 
         MapPointNode * ptr = finished_list;
         finished_list = finished_list->next;
-        GetCell(ptr->pos)->SetContinent(m_water_continent_max);
+        GetCell(ptr->pos)->SetWaterContinent(m_water_continent_max);
         delete ptr;
     }
 
@@ -209,14 +178,14 @@ void World::AddToWaterSearch
     if (IsNewWater(pos))
     {
         search_list = new MapPointNode(pos, search_list);
-        GetCell(pos)->SetContinent(SEARCHING_CONTINENT);
+        GetCell(pos)->SetWaterContinent(SEARCHING_CONTINENT);
     }
 }
 
 bool World::IsNewWater(MapPoint const & p) const
 {
     Cell *  c = GetCell(p);
-    sint32  v = c->GetContinent();
+    sint32  v = c->GetWaterContinent();
 
     if (INVALID_CONTINENT == v)
     {
@@ -253,48 +222,6 @@ bool World::NextPoint
 }
 
 
-void World::ResetCanalsTunnels()
-{
-    while (g_tunnel_list)
-    {
-        Old_Cont_Node * oldFirst    = g_tunnel_list;
-        g_tunnel_list               = g_tunnel_list->m_next;
-        delete oldFirst;
-    }
-
-    MapPoint pos;
-
-    for (pos.x=0; pos.x<m_size.x; pos.x++) {
-       for (pos.y=0; pos.y<m_size.y; pos.y++) {
-
-           Cell * c = GetCell(pos);
-           uint32 e = c->GetEnv();
-
-           if ((e & k_BIT_MOVEMENT_TYPE_WATER) || (e & k_BIT_MOVEMENT_TYPE_SHALLOW_WATER))
-           {
-               if (e & k_MASK_ENV_CANAL_TUNNEL)
-               {
-
-                   sint32  old_cont_val = c->GetContinent();
-                   if ((0 <= old_cont_val) && IsWater(pos))
-                   {
-                       g_tunnel_list = new Old_Cont_Node(pos, g_tunnel_list, old_cont_val);
-                   }
-
-                   c->SetContinent(INVALID_CONTINENT);
-               }
-           }
-           else if ((e & k_BIT_MOVEMENT_TYPE_LAND) || (e & k_BIT_MOVEMENT_TYPE_MOUNTAIN))
-           {
-               c->SetContinent(INVALID_CONTINENT);
-           }
-       }
-    }
-}
-
-
-
-
 
 void World::GrowContinents()
 {
@@ -311,7 +238,7 @@ void World::GrowContinents()
 
 bool World::IsNewLand(MapPoint const &p) const
 {
-    if (INVALID_CONTINENT == GetCell(p)->GetContinent())
+    if (INVALID_CONTINENT == GetCell(p)->GetLandContinent())
     {
         uint32 e = GetCell(p)->GetEnv();
 
@@ -371,7 +298,7 @@ void World::GrowLand(MapPoint const & start)
         MapPointNode * ptr = finished_list;
         finished_list = finished_list->next;
 
-        GetCell(ptr->pos)->SetContinent(m_land_continent_max);
+        GetCell(ptr->pos)->SetLandContinent(m_land_continent_max);
         delete ptr;
     }
 
@@ -388,7 +315,7 @@ void World::AddToLandSearch
     if (IsNewLand(pos))
     {
         search_list = new MapPointNode(pos, search_list);
-        GetCell(pos)->SetContinent(SEARCHING_CONTINENT);
+        GetCell(pos)->SetLandContinent(SEARCHING_CONTINENT);
     }
 }
 
@@ -447,7 +374,11 @@ void World::GetContinent(const MapPoint &pos, sint16 &cont_number, bool &is_land
 
 	is_land = !IsWater(pos);
 
-	cont_number = GetCell(pos)->m_continent_number;
+	// A tunnel tile satisfies IsWater(), so it falls into the water branch
+	// below like any other water tile, same as before this was sourced from
+	// m_continentIDs instead of the single-value m_continent_number.
+	Cell const * cell = GetCell(pos);
+	cont_number = is_land ? cell->GetLandContinent() : cell->GetWaterContinent();
 	if (is_land)
 	{
 		cont_number -= LAND_CONTINENT_START;
@@ -457,7 +388,7 @@ void World::GetContinent(const MapPoint &pos, sint16 &cont_number, bool &is_land
 	     || (!is_land && cont_number >= LAND_CONTINENT_START)
 	   )
 	{
-#if defined(_DEBUG) 
+#if defined(_DEBUG)
 		Assert(REPORTED_MAP_CONTINENT_NUMBERING_INCORRECT);
 		REPORTED_MAP_CONTINENT_NUMBERING_INCORRECT = true;
 #endif

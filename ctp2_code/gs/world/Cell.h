@@ -128,6 +128,44 @@ class MapPoint;
 #include "player.h"     // PLAYER_INDEX
 #include "Unit.h"
 
+#define INVALID_CONTINENT -2
+#define SEARCHING_CONTINENT -1
+
+// A tunnel/canal tile is simultaneously land and water, so a single
+// continent number can't represent both memberships - a water city
+// connected to land only via such a tile ends up misclassified.
+// Track the two separately instead.
+class ContinentIDs
+{
+	sint16 m_waterContinentID;
+	sint16 m_landContinentID;
+
+public:
+	ContinentIDs(sint16 waterID = INVALID_CONTINENT, sint16 landID = INVALID_CONTINENT)
+	: m_waterContinentID (waterID),
+	  m_landContinentID  (landID)
+	{
+	}
+
+	bool operator == (const ContinentIDs & rval) const
+	{
+		return (m_waterContinentID == rval.m_waterContinentID && m_waterContinentID >= 0)
+		    || (m_landContinentID  == rval.m_landContinentID  && m_landContinentID  >= 0);
+	}
+
+	bool operator != (const ContinentIDs & rval) const
+	{
+		return !(*this == rval);
+	}
+
+	void SetWaterContinent(sint16 waterID) { m_waterContinentID = waterID; }
+	void SetLandContinent (sint16 landID)  { m_landContinentID  = landID;  }
+	void InvalidateContinent() { m_waterContinentID = INVALID_CONTINENT; m_landContinentID = INVALID_CONTINENT; }
+	sint16 GetWaterContinent() const { return m_waterContinentID; }
+	sint16 GetLandContinent () const { return m_landContinentID;  }
+	bool IsWaterContinent() const { return m_waterContinentID != INVALID_CONTINENT; }
+	bool IsLandContinent () const { return m_landContinentID  != INVALID_CONTINENT; }
+};
 
 class Cell {
 
@@ -146,7 +184,10 @@ private:
 #ifdef BATTLE_FLAGS
 	uint16 m_battleFlags;
 #endif
-	sint16 m_continent_number;
+	// Superseded by m_continentIDs below, which can represent a tunnel's
+	// dual land/water membership; this single value can't. Kept only as
+	// unused save-format padding - do not read or write it.
+	sint16 m_unused;
 	sint8  m_gf;
 	sint8  m_terrain_type;
 	Unit   m_city;
@@ -156,6 +197,7 @@ private:
 // Changing the order below this line should not break anything.
 //----------------------------------------------------------------------------
 
+	ContinentIDs m_continentIDs;
 	CellUnitList *m_unit_army;
 	DynamicArray<ID> *m_objects;
 
@@ -250,8 +292,14 @@ public:
 	double GetFutureTerrainMoveCost() const;
 
 	bool GetIsChokePoint() const { return m_gf != 0; }
-	sint16 GetContinent() const { return m_continent_number; }
-	void SetContinent(sint16 val) { m_continent_number = val; }
+	ContinentIDs GetContinent() const { return m_continentIDs; }
+	void SetLandContinent (sint16 val) { m_continentIDs.SetLandContinent(val);  }
+	void SetWaterContinent(sint16 val) { m_continentIDs.SetWaterContinent(val); }
+	sint16 GetLandContinent () const { return m_continentIDs.GetLandContinent();  }
+	sint16 GetWaterContinent() const { return m_continentIDs.GetWaterContinent(); }
+	bool IsWaterContinent() const { return m_continentIDs.IsWaterContinent(); }
+	bool IsLandContinent () const { return m_continentIDs.IsLandContinent(); }
+	void InvalidateContinent() { m_continentIDs.InvalidateContinent(); }
 
 	sint32 GetNumImprovements() const;
 	TerrainImprovement AccessImprovement(sint32 index);

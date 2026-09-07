@@ -7161,6 +7161,16 @@ void CityData::SetRoad() const
 	if (rec)
 	{
 		cell->InsertDBImprovement(rec->GetIndex());
+
+		if (rec->GetClassOceanRoad())
+		{
+			// SetRoad also runs outside of founding (e.g. once per city on
+			// every advance-gain via Player::SetCityRoads), so a newly
+			// eligible tunnel here needs the same deferred renumber as
+			// TerrainImprovementData::Complete uses for the general
+			// improvement-construction path.
+			g_theWorld->MarkContinentsDirty();
+		}
 	}
 #if 0
 	uint32 oenv = cell->GetEnv();

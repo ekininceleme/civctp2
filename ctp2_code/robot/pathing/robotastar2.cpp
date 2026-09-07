@@ -69,22 +69,55 @@ bool RobotAstar2::TransportPathCallback (const bool & can_enter,
 {
 	if (can_enter)
 	{
-		sint32 cont     = g_theWorld->GetContinent(pos);
+		ContinentIDs cont = g_theWorld->GetContinent(pos);
 		bool is_land    = ( g_theWorld->IsLand(pos) || g_theWorld->IsMountain(pos) );
 		bool wrong_cont = ( cont != m_transDestCont ) && (!g_theWorld->IsCity(pos));
 
 		bool occupied = (m_army->HasCargo() && (!m_army.CanAtLeastOneCargoUnloadAt(pos, false, !m_is_robot)));
 
+		// World::IsTunnel(pos) requires IsWater(pos) first, so a tunnel
+		// tile also satisfies IsWater/IsShallowWater below - without this,
+		// cargo standing on a tunnel (already disembarked onto its
+		// walkable surface) would be treated as still aboard the ship,
+		// same as if prev were open water.
+		bool const prevIsTunnel = g_theWorld->IsTunnel(prev);
+
+		// On an X-wrap map, x=0 should be seamlessly adjacent to x=width-1,
+		// not a dead end. Log continent IDs on both sides whenever the
+		// search actually looks at a tile near that seam, to check whether
+		// GrowWater/GrowLand assign matching IDs across it. Tightly gated
+		// so this doesn't flood the log for ordinary, non-seam moves.
+		sint32 const mapWidth = g_theWorld->GetWidth();
+		if(pos.x <= 2 || pos.x >= mapWidth - 2 || prev.x <= 2 || prev.x >= mapWidth - 2)
+		{
+			AI_DPRINTF(k_DBG_ASTAR, m_owner, -1, m_army.m_id,
+			    ("\tWRAP_DIAG: prev(%d,%d) pos(%d,%d) start(%d,%d) dest(%d,%d) mapWidth=%d contPrev=%d/%d contPos=%d/%d transDestCont=%d/%d wrong_cont=%d occupied=%d\n",
+			     prev.x, prev.y, pos.x, pos.y, m_start.x, m_start.y, m_dest.x, m_dest.y,
+			     mapWidth,
+			     g_theWorld->GetContinent(prev).GetLandContinent(), g_theWorld->GetContinent(prev).GetWaterContinent(),
+			     cont.GetLandContinent(), cont.GetWaterContinent(),
+			     m_transDestCont.GetLandContinent(), m_transDestCont.GetWaterContinent(),
+			     wrong_cont, occupied));
+		}
+
 		if(occupied || wrong_cont)
 		{
 			if(  is_land
 			   &&
-			     (    g_theWorld->IsWater(prev)
-			       || g_theWorld->IsShallowWater(prev)
+			     (    (g_theWorld->IsWater(prev) && !prevIsTunnel)
+			       || (g_theWorld->IsShallowWater(prev) && !prevIsTunnel)
 			       || g_theWorld->IsCity(prev)
 			     )
 			  )
 			{
+				AI_DPRINTF(k_DBG_ASTAR, m_owner, -1, m_army.m_id,
+				    ("\tBLOCK_DIAG: prev(%d,%d) pos(%d,%d) start(%d,%d) dest(%d,%d) occupied=%d wrong_cont=%d checkDest=%d IsCity(pos)=%d IsCity(prev)=%d contPos=%d/%d transDestCont=%d/%d\n",
+				     prev.x, prev.y, pos.x, pos.y, m_start.x, m_start.y, m_dest.x, m_dest.y,
+				     occupied, wrong_cont, GetCheckDest(),
+				     g_theWorld->IsCity(pos), g_theWorld->IsCity(prev),
+				     cont.GetLandContinent(), cont.GetWaterContinent(),
+				     m_transDestCont.GetLandContinent(), m_transDestCont.GetWaterContinent()));
+
 				cost = k_ASTAR_BIG;
 				entry = ASTAR_RETRY_DIRECTION;
 				return false;
@@ -112,13 +145,26 @@ bool RobotAstar2::TransportPathCallback (const bool & can_enter,
 			 && !g_theWorld->IsShallowWater(prev)
 			 &&  g_theWorld->GetContinent(prev) == m_transDestCont;
 
-			AI_DPRINTF(k_DBG_ASTAR, m_owner, -1, m_army.m_id,
-			    ("\tLEAVE_DIAG: prev(%d,%d) pos(%d,%d) start(%d,%d) dest(%d,%d) transDestCont=%d contPrev=%d contPos=%d prevIsTargetContLand=%d prev!=start=%d IsCity(prev)=%d IsCity(pos)=%d\n",
-			     prev.x, prev.y, pos.x, pos.y, m_start.x, m_start.y, m_dest.x, m_dest.y,
-			     m_transDestCont, g_theWorld->GetContinent(prev), g_theWorld->GetContinent(pos),
-			     prevIsTargetContLand, (prev != m_start), g_theWorld->IsCity(prev), g_theWorld->IsCity(pos)));
+			// A tunnel tile is water for a ship, but for cargo that's
+			// already disembarked it's the land bridge across a strait -
+			// crossing one (or a chain of them, since each tile is
+			// checked independently as pos advances) while already
+			// marching on the target continent isn't "leaving" it, and
+			// should cost like a land step below, not get scaled by the
+			// ship's speed ratio.
+			bool const posIsTargetContTunnel =
+			    g_theWorld->IsTunnel(pos)
+			 && g_theWorld->GetContinent(pos).GetLandContinent() == m_transDestCont.GetLandContinent();
 
-			if(prevIsTargetContLand && prev != m_start)
+			AI_DPRINTF(k_DBG_ASTAR, m_owner, -1, m_army.m_id,
+			    ("\tLEAVE_DIAG: prev(%d,%d) pos(%d,%d) start(%d,%d) dest(%d,%d) transDestCont=%d/%d contPrev=%d/%d contPos=%d/%d prevIsTargetContLand=%d posIsTargetContTunnel=%d prev!=start=%d IsCity(prev)=%d IsCity(pos)=%d\n",
+			     prev.x, prev.y, pos.x, pos.y, m_start.x, m_start.y, m_dest.x, m_dest.y,
+			     m_transDestCont.GetLandContinent(), m_transDestCont.GetWaterContinent(),
+			     g_theWorld->GetContinent(prev).GetLandContinent(), g_theWorld->GetContinent(prev).GetWaterContinent(),
+			     g_theWorld->GetContinent(pos).GetLandContinent(), g_theWorld->GetContinent(pos).GetWaterContinent(),
+			     prevIsTargetContLand, posIsTargetContTunnel, (prev != m_start), g_theWorld->IsCity(prev), g_theWorld->IsCity(pos)));
+
+			if(prevIsTargetContLand && prev != m_start && !posIsTargetContTunnel)
 			{
 				// Return invalid if we leave the target continent
 				cost = k_ASTAR_BIG;
@@ -126,30 +172,60 @@ bool RobotAstar2::TransportPathCallback (const bool & can_enter,
 				return false;
 			}
 
-			cost *= m_transMaxR;
+			if (!posIsTargetContTunnel)
+			{
+				cost *= m_transMaxR;
+			}
 		}
 
 		if(g_theWorld->IsWater(prev) || g_theWorld->IsShallowWater(prev))
 		{
-			if
-			  (
-			       (   // If we land
-			           g_theWorld->IsLand(pos)
-			        || g_theWorld->IsMountain(pos)
-			       )
-			    && (
-			          ( g_theWorld->IsOccupiedByForeigner  (pos, m_owner) // If the target is a city
-			        && !g_theWorld->IsSurroundedByWater    (pos))
-			        ||  g_theWorld->IsNextToForeigner(pos, m_owner)
-			       )
-			  )
+			// A tunnel tile satisfies IsWater() too, so unlike a true coastal
+			// landing - where this gate fires exactly once, right as the ship
+			// puts cargo ashore - walking a tunnel chain re-triggers it at
+			// every single hop, since prev is a tunnel (= water) the whole
+			// way. Left unrestricted, that piles up danger cost for foreign
+			// presence anywhere along a long corridor, far from the actual
+			// target, instead of just discouraging landing too close to it.
+			// Only apply it once actually next to the destination.
+			bool posNextToDest = true;
+
+			if(prevIsTunnel)
 			{
-				cost += k_MOVE_ISDANGER_COST;
+				posNextToDest = false;
+				MapPoint neighbor;
+				for(sint32 dir = 0; dir <= SOUTH; ++dir)
+				{
+					if(pos.GetNeighborPosition(WORLD_DIRECTION(dir), neighbor) && neighbor == m_dest)
+					{
+						posNextToDest = true;
+						break;
+					}
+				}
 			}
-			// If we do not land, just avoid some units next, for instance bombardment units
-			else if(g_theWorld->IsNextToForeigner(pos, m_owner))
+
+			if(posNextToDest)
 			{
-				cost += k_MOVE_ISDANGER_COST;
+				if
+				  (
+				       (   // If we land
+				           g_theWorld->IsLand(pos)
+				        || g_theWorld->IsMountain(pos)
+				       )
+				    && (
+				          ( g_theWorld->IsOccupiedByForeigner  (pos, m_owner) // If the target is a city
+				        && !g_theWorld->IsSurroundedByWater    (pos))
+				        ||  g_theWorld->IsNextToForeigner(pos, m_owner)
+				       )
+				  )
+				{
+					cost += k_MOVE_ISDANGER_COST;
+				}
+				// If we do not land, just avoid some units next, for instance bombardment units
+				else if(g_theWorld->IsNextToForeigner(pos, m_owner))
+				{
+					cost += k_MOVE_ISDANGER_COST;
+				}
 			}
 		}
 
@@ -200,6 +276,17 @@ bool RobotAstar2::AirliftPathCallback (const bool & can_enter,
 					return false;
 				}
 			}
+		}
+
+		// Protects the transporter itself, not its cargo - unlike a landing
+		// preference (m_dest is a single fixed tile, so cost added there
+		// can't steer anything), this applies to every other tile still in
+		// flight, where genuine alternate routes exist. Mirrors
+		// TransportPathCallback's "if we do not land, just avoid some units
+		// next" branch, which does the same for a ship still at sea.
+		if(pos != m_dest && g_theWorld->IsNextToForeigner(pos, m_owner))
+		{
+			cost += k_MOVE_ISDANGER_COST;
 		}
 
 		return true;
