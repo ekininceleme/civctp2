@@ -6,7 +6,7 @@ AC_DEFUN([AC_LIBANET_INTERNAL],[
    AC_REQUIRE([AC_CANONICAL_HOST])
 
    case "${host}" in
-      *-linux*)
+      *-linux*|*-darwin*)
          AC_DEFINE(cdecl,,[cdecl dummy declaration])
 	 AC_DEFINE(stricmp,strcasecmp,[function for case insensitive string comparison])
 	 AC_DEFINE(strnicmp,strncasecmp,[function for case insensitive comparison of first n characters of a string])
@@ -52,4 +52,3 @@ dnl         AC_DEFINE(__NO_ANONYMOUS_UNIONS__,1,[Define to 1 if anonymous unions
    AC_SUBST(ANET_CFLAGS_LOG)
    AC_SUBST(LIBBSD_COMPAT)
 ])
-

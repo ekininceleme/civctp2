@@ -1,4 +1,7 @@
 #include "c3.h"
+#include "display.h"
+#include "display_scaling.h"
+#include "StrDB.h"
 #include "graphicsresscreen.h"
 
 #include "profileDB.h"      // g_theProfileDB
@@ -27,6 +30,45 @@ extern SpriteGroupList * g_goodSpriteGroupList;
 
 static ctp2_Button    * s_resScreenButton = NULL;
 static c3_PopupWindow * s_graphicsWindow  = NULL;
+
+#if defined(__AUI_USE_SDL__)
+static ctp2_Button *s_scaleButton = NULL;
+static c3_Static *s_scaleWarning = NULL;
+
+static int graphicsScaleLimit()
+{
+    int width = display_GetOutputWidth();
+    int height = display_GetOutputHeight();
+    if (display_IsLegalResolution(g_theProfileDB->GetScreenResWidth(),
+                                  g_theProfileDB->GetScreenResHeight()))
+    {
+        width = g_theProfileDB->GetScreenResWidth();
+        height = g_theProfileDB->GetScreenResHeight();
+    }
+    return CalculateDisplayScaling(width, height, 300).percent;
+}
+
+static void updateScaleControl()
+{
+    const int percent = std::max(100, std::min(g_theProfileDB->GetScreenScalePercent(),
+                                              graphicsScaleLimit()) / 25 * 25);
+    g_theProfileDB->SetScreenScalePercent(percent);
+    const char *label = g_theStringDB->GetNameStr("str_ldl_GAME_SCALE");
+    char text[128];
+    snprintf(text, sizeof(text), "%s: %d%%", label ? label : "Game scale", percent);
+    s_scaleButton->SetText(text);
+    if (percent != display_GetScalePercent()) s_scaleWarning->Show();
+    else s_scaleWarning->Hide();
+}
+
+static void graphicsscreen_scalePress(aui_Control *, uint32 action, uint32, Cookie)
+{
+    if (action != AUI_BUTTON_ACTION_EXECUTE) return;
+    const int next = g_theProfileDB->GetScreenScalePercent() + 25;
+    g_theProfileDB->SetScreenScalePercent(next > graphicsScaleLimit() ? 100 : next);
+    updateScaleControl();
+}
+#endif
 
 static c3_Static * s_brightN   = NULL;
 static C3Slider  * s_bright    = NULL;
@@ -189,6 +231,7 @@ void graphicsscreen_initializeValues()
 	s_cityProd        ->SetState(g_theProfileDB->IsShowCityProduction());
 #if defined(__AUI_USE_SDL__)
 	s_windowedMode    ->SetState(g_theProfileDB->IsWindowedMode());
+	updateScaleControl();
 #endif
 }
 
@@ -266,6 +309,8 @@ AUI_ERRCODE graphicsscreen_Initialize( void )
 	s_cityProd         = spNew_aui_Switch  (&errcode, windowBlock, "ShowCityProdButton",     graphicsscreen_checkPress, &check[GS_CITYPROD]);
 #if defined(__AUI_USE_SDL__)
 	s_windowedMode     = spNew_aui_Switch  (&errcode, windowBlock, "WindowedModeButton",     graphicsscreen_checkPress, &check[GS_WINDOWEDMODE]);
+	s_scaleButton = spNew_ctp2_Button(&errcode, windowBlock, "ScaleButton", graphicsscreen_scalePress);
+	s_scaleWarning = spNew_c3_Static(&errcode, windowBlock, "ScaleWarning");
 #endif
 	s_unitSpeed        = spNew_C3Slider    (&errcode, windowBlock, "UnitSpeedSlider",        graphicsscreen_unitSpeedSlide);
 	s_unitSpeedN       = spNew_c3_Static   (&errcode, windowBlock, "UnitSpeedName");
@@ -316,6 +361,8 @@ void graphicsscreen_Cleanup()
 	mycleanup(s_cityProd);
 #if defined(__AUI_USE_SDL__)
 	mycleanup(s_windowedMode);
+	mycleanup(s_scaleButton);
+	mycleanup(s_scaleWarning);
 #endif
 #undef mycleanup
 }

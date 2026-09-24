@@ -11,7 +11,7 @@
 #if defined(__AUI_USE_SDL__)
 
 #include "aui_sdlmovie.h"
-#include <SDL2/SDL_render.h>
+#include <SDL_render.h>
 
 class aui_SDLMovieManager : public aui_MovieManager {
 public:

@@ -285,7 +285,14 @@ public:
 
 
 	aui_BitmapFont	*LoadBitmapFont( const MBCHAR *name, uint32 size = 0 )
-		{ return m_bitmapFontResource->Load( name, C3DIR_DIRECT, size ); }
+		{
+            if (!name) return NULL;
+            if (!size || strchr(name, '|'))
+                return m_bitmapFontResource->Load(name);
+            MBCHAR descriptor[k_AUI_BITMAPFONT_MAXDESCLEN + 1];
+            aui_BitmapFont::AttributesToDescriptor(descriptor, name, size, 0, 0);
+            return m_bitmapFontResource->Load(descriptor);
+        }
 
 	AUI_ERRCODE	UnloadBitmapFont( aui_BitmapFont *resource )
 		{ return m_bitmapFontResource->Unload( resource ); }

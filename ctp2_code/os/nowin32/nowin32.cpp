@@ -16,12 +16,12 @@
 #endif
 #include <unistd.h>
 #include <ctype.h>
-#include <SDL2/SDL_timer.h>
+#include <SDL_timer.h>
 
 #include "windows.h"
 
 #ifdef USE_SDL
-  #include "SDL2/SDL.h"
+  #include "SDL.h"
 #endif
 
 // @ToDo: _fullpath is the version of ptitSeb's branch, check whether there
@@ -46,7 +46,7 @@ char* _fullpath(char* absolute, const char* relative, size_t bufsize)
 	{
 #ifdef __USE_GNU
 		const char *fixedName = CI_FixName(relative);
-		char *abs = canonicalize_file_name(fixedName);
+		char *abs = realpath(fixedName, NULL);
 		if(abs)
 		{
 			strncpy(dest, abs, size - 1);
@@ -58,7 +58,7 @@ char* _fullpath(char* absolute, const char* relative, size_t bufsize)
 			// NOTE: canonicalize_file_name will return NULL if last element does not exist
 			//   as this method should not return NULL in that case we test dirname on existence
 			char *fixedNameDuplicate = strdup(fixedName);
-			abs = canonicalize_file_name(dirname(fixedNameDuplicate));
+			abs = realpath(dirname(fixedNameDuplicate), NULL);
 			free(fixedNameDuplicate);
 			if (abs)
 			{

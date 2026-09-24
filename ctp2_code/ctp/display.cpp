@@ -1,6 +1,7 @@
 #include "c3.h"
 
 #include "display.h"
+#include "display_scaling.h"
 
 #include "pointerlist.h"
 #include "appstrings.h"
@@ -9,8 +10,16 @@
 #if defined(__AUI_USE_DIRECTX__)
 #include <multimon.h>
 #elif defined(__AUI_USE_SDL__)
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #endif
+
+static sint32 s_outputWidth = 0;
+static sint32 s_outputHeight = 0;
+static sint32 s_scalePercent = 100;
+
+sint32 display_GetOutputWidth() { return s_outputWidth; }
+sint32 display_GetOutputHeight() { return s_outputHeight; }
+sint32 display_GetScalePercent() { return s_scalePercent; }
 
 PointerList<CTPDisplayMode>	*g_displayModes = NULL;
 #if defined(__AUI_USE_DIRECTX__)
@@ -303,8 +312,15 @@ int display_Initialize(HINSTANCE hInstance, int iCmdShow)
 
 
 	if (!foundRes) {
-		if (display_IsLegalResolution(g_theProfileDB->GetScreenResWidth(),
-									g_theProfileDB->GetScreenResHeight())) {
+		if (
+#ifdef __AUI_USE_SDL__
+            // Window sizes need not match an exclusive monitor display mode.
+            (g_theProfileDB->IsWindowedMode() &&
+             g_theProfileDB->GetScreenResWidth() >= 800 &&
+             g_theProfileDB->GetScreenResHeight() >= 600) ||
+#endif
+            display_IsLegalResolution(g_theProfileDB->GetScreenResWidth(),
+                                     g_theProfileDB->GetScreenResHeight())) {
 			g_ScreenWidth = g_theProfileDB->GetScreenResWidth();
 			g_ScreenHeight = g_theProfileDB->GetScreenResHeight();
 		} else {
@@ -326,6 +342,17 @@ int display_Initialize(HINSTANCE hInstance, int iCmdShow)
 		g_ScreenWidth = 800;
 		g_ScreenHeight = 600;
 	}
+
+	s_outputWidth = g_ScreenWidth;
+	s_outputHeight = g_ScreenHeight;
+#ifdef __AUI_USE_SDL__
+	const DisplayScaling scaled = CalculateDisplayScaling(s_outputWidth, s_outputHeight,
+	    g_theProfileDB->GetScreenScalePercent());
+	g_ScreenWidth = scaled.width;
+	g_ScreenHeight = scaled.height;
+	s_scalePercent = scaled.percent;
+	g_theProfileDB->SetScreenScalePercent(scaled.percent);
+#endif
 
 #ifdef __AUI_USE_DIRECTX__
 	display_InitWindow(hInstance, iCmdShow);

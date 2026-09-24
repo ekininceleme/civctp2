@@ -233,17 +233,8 @@ AUI_ERRCODE aui_TextField::InitCommon(
 	m_selStart = m_selEnd = static_cast<sint32>(strlen(m_Text));
 	m_viewStart = 0;
 
-	// This supposed to set the font size as far as I understand it. However,
-	// it doesn't do it without SetPointSize. At least it fixes an assert.
 	m_Font = g_ui->LoadBitmapFont(m_desiredFont, k_AUI_TEXTBASE_DEFAULT_FONTSIZE);
-	Assert(m_Font);
-	// FIXME: HACK: I'm setting the font size here because it doesn't seem to be
-	// being set anywhere else, which was causing textboxes to display no text.
-	// With this fix they do display text, but it's usually of the wrong size.
-	// More needs to be done on this problem
-
-	// m_Font->SetMaxHeight(m_textHeight); //adjusting font to boxhight does not work
-	m_Font->SetPointSize(k_AUI_TEXTBASE_DEFAULT_FONTSIZE);
+	if (!m_Font) return AUI_ERRCODE_HACK;
 	if (fontheight)
 		m_textHeight = fontheight;
 	else

@@ -2170,7 +2170,7 @@ long SpriteFile::GetFilePos(void)
 	sint32	err = c3files_fgetpos(m_file, &m_filePos);
 	Assert(err == 0);
 
-#ifdef WIN32
+#if defined(WIN32) || defined(__APPLE__)
 	return static_cast<long>(m_filePos);
 #elif defined(LINUX)
 	return m_filePos.__pos;
@@ -2182,7 +2182,7 @@ void SpriteFile::SetFilePos(long pos)
 	fpos_t		filePos;
 	sint32		err;
 
-#ifdef WIN32
+#if defined(WIN32) || defined(__APPLE__)
 	filePos = pos;
 #elif defined(LINUX)
 	err = c3files_fgetpos(m_file, &filePos);

@@ -76,6 +76,11 @@ BOOL				display_InitWindow(HINSTANCE hinst, int cmdshow);
 
 int					display_Initialize(HINSTANCE hInstance, int iCmdShow);
 
+// Output dimensions remain unchanged when the logical game canvas is scaled.
+sint32 display_GetOutputWidth();
+sint32 display_GetOutputHeight();
+sint32 display_GetScalePercent();
+
 void display_Cleanup();
 
 #endif

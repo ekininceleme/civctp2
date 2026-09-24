@@ -5,7 +5,9 @@
 #pragma once
 #endif
 
-#if defined(HAVE_CONFIG_H)
+#if defined(CTP2_CMAKE_BUILD)
+#include <ctp2_build_config.h>
+#elif defined(HAVE_CONFIG_H)
 #include "config.h"
 #elif defined(_MSC_VER)
 #include "config_win32.h"

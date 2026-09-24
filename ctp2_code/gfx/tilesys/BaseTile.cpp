@@ -29,6 +29,7 @@
 //----------------------------------------------------------------------------
 
 #include "c3.h"
+#include "tilebinary.h"
 
 #include "c3files.h"
 
@@ -102,22 +103,22 @@ BOOL BaseTile::Read(FILE *file)
 
 BOOL BaseTile::QuickRead(uint8 **dataPtr, BOOL mapped)
 {
-	m_tileNum      = *(uint16 *)(*dataPtr);
+	m_tileNum      = tile_ReadScalar<uint16>(*dataPtr);
 	(*dataPtr)    += sizeof(uint16);
 
-	m_baseType     = *(uint8 *)(*dataPtr);
+	m_baseType     = tile_ReadScalar<uint8>(*dataPtr);
 	(*dataPtr)    += sizeof(uint8);
 
-	m_flags        = *(uint8 *)(*dataPtr);
+	m_flags        = tile_ReadScalar<uint8>(*dataPtr);
 	(*dataPtr)    += sizeof(uint8);
 
-	m_tileDataLen  = *(uint16 *)(*dataPtr);
+	m_tileDataLen  = tile_ReadScalar<uint16>(*dataPtr);
 	(*dataPtr)    += sizeof(uint16);
 
 	m_tileData     = (Pixel16 *)(*dataPtr);
 	(*dataPtr)    += (m_tileDataLen);
 
-	uint16 size    = *(uint16 *)(*dataPtr);
+	uint16 size    = tile_ReadScalar<uint16>(*dataPtr);
 	(*dataPtr)    += sizeof(uint16);
 
 	Pixel16		*hatData;

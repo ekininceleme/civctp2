@@ -1,0 +1,27 @@
+include("${CMAKE_CURRENT_LIST_DIR}/AnetSources.cmake")
+set(anet_root "${PROJECT_SOURCE_DIR}/ctp2_code/libs/anet")
+if(WIN32)
+  set(anet_sources ${CTP2_ANET_WINDOWS_SOURCES})
+else()
+  set(anet_sources ${CTP2_ANET_UNIX_SOURCES})
+endif()
+list(TRANSFORM anet_sources PREPEND "${anet_root}/")
+add_library(ctp2_anet STATIC ${anet_sources})
+target_include_directories(ctp2_anet PUBLIC "${anet_root}/h" PRIVATE
+  "${anet_root}/src/linux/dp" "${anet_root}/src/aeh" "${anet_root}/demo/utils"
+  "${anet_root}/src/3rdparty/d3des" "${anet_root}/src/3rdparty/md5")
+target_compile_definitions(ctp2_anet PRIVATE dp_ANET2 COMM_INST)
+if(WIN32)
+  target_include_directories(ctp2_anet PRIVATE "${anet_root}/src/win/h" "${anet_root}/src/win/stub" "${anet_root}/src/score")
+  target_compile_definitions(ctp2_anet PRIVATE WIN32 _WINDOWS WINDOWS_IGNORE_PACKING_MISMATCH _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
+  target_link_libraries(ctp2_anet PUBLIC ws2_32 winmm advapi32)
+else()
+  target_compile_definitions(ctp2_anet PRIVATE UNIX cdecl= __NO_ANONYMOUS_UNIONS__
+    "PACK=__attribute__((packed))" strnicmp=strncasecmp stricmp=strcasecmp)
+  target_compile_options(ctp2_anet PRIVATE -fms-extensions -Wno-deprecated-declarations)
+  target_link_libraries(ctp2_anet PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+endif()
+# Sanitizers apply to project-owned bundled networking code as well as the game.
+if(CTP2_SANITIZERS)
+  target_compile_options(ctp2_anet PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all)
+endif()

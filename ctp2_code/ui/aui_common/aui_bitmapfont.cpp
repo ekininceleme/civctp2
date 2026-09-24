@@ -49,6 +49,10 @@
 
 #include "c3.h"
 #include "aui_bitmapfont.h"
+#ifdef CTP2_FREETYPE2
+#include "freetype_library.h"
+#include "freetype_render.h"
+#endif
 
 #include <algorithm>
 #include "aui_blitter.h"
@@ -69,7 +73,11 @@ namespace
 }
 
 sint32      aui_BitmapFont::s_bitmapFontRefCount    = 0;
-TT_Engine   aui_BitmapFont::s_ttEngine              = { NULL };
+#ifdef CTP2_FREETYPE2
+FT_Library aui_BitmapFont::s_ftLibrary = nullptr;
+#else
+TT_Engine   aui_BitmapFont::s_ttEngine = { NULL };
+#endif
 
 aui_BitmapFont::aui_BitmapFont(
 	AUI_ERRCODE *retval,
@@ -123,7 +131,8 @@ AUI_ERRCODE aui_BitmapFont::InitCommon( const MBCHAR *descriptor )
 	if ( !AUI_SUCCESS(errcode) ) return errcode;
 
 	memset( m_ttffile, '\0', sizeof( m_ttffile ) );
-	m_pointSize = 0;
+	// Bare font filenames use the UI default; descriptors override it.
+	m_pointSize = 12;
 	m_bold = 0;
 	m_italic = 0;
 
@@ -149,6 +158,7 @@ AUI_ERRCODE aui_BitmapFont::InitCommon( const MBCHAR *descriptor )
 	m_lineSkip = 0;
 	m_tabSkip = -1;
 
+#ifndef CTP2_FREETYPE2
 	m_ttFace.z = NULL;
 	m_ttInstance.z = NULL;
 	m_ttCharMap.z = NULL;
@@ -156,10 +166,18 @@ AUI_ERRCODE aui_BitmapFont::InitCommon( const MBCHAR *descriptor )
 	memset( &m_ttFaceProperties, 0, sizeof( m_ttFaceProperties ) );
 	memset( &m_ttInstanceMetrics, 0, sizeof( m_ttInstanceMetrics ) );
 
+#endif
+
 	m_surfaceList = new tech_WLList<aui_Surface *>;
 	Assert( m_surfaceList != NULL );
 	if ( !m_surfaceList ) return AUI_ERRCODE_MEMALLOCFAILED;
 
+#ifdef CTP2_FREETYPE2
+    if (!s_ftLibrary && ctp2_InitFontLibrary(&s_ftLibrary)) return AUI_ERRCODE_HACK;
+    m_hasLibraryRef = true;
+    if (!s_bitmapFontRefCount++)
+    {
+#else
 	if ( !s_bitmapFontRefCount++ )
 	{
 		sint32 error = TT_Init_FreeType(&s_ttEngine);
@@ -178,6 +196,8 @@ AUI_ERRCODE aui_BitmapFont::InitCommon( const MBCHAR *descriptor )
 		error = TT_Set_Raster_Gray_Palette(s_ttEngine, palette );
 		Assert( error == 0 );
 		if ( error ) return AUI_ERRCODE_HACK;
+
+#endif
 
 #ifdef WIN32
 		static MBCHAR fontdir[ MAX_PATH + 1 ];
@@ -203,6 +223,12 @@ aui_BitmapFont::~aui_BitmapFont()
 
 	delete m_surfaceList;
 
+#ifdef CTP2_FREETYPE2
+    if (m_hasLibraryRef && !--s_bitmapFontRefCount) {
+        FT_Done_FreeType(s_ftLibrary);
+        s_ftLibrary = nullptr;
+    }
+#else
 	if ( !--s_bitmapFontRefCount )
 	{
 		if (s_ttEngine.z)
@@ -211,6 +237,7 @@ aui_BitmapFont::~aui_BitmapFont()
 			s_ttEngine.z = NULL;
 		}
 	}
+#endif
 }
 
 
@@ -237,6 +264,22 @@ AUI_ERRCODE aui_BitmapFont::Load( void )
 	else if (g_civPaths->FindFile(C3DIR_FONTS, m_ttffile, fullPath, TRUE)) // try C3DIR_FONTS if GetBitmapFontResource fails (e.g. is not yet available)
 		strncpy( m_ttffile, fullPath, MAX_PATH );
 
+#ifdef CTP2_FREETYPE2
+#ifdef __linux__
+    const char *fontPath = CI_FixName(m_ttffile);
+#else
+    const char *fontPath = m_ttffile;
+#endif
+    FT_Error error = FT_New_Face(s_ftLibrary, fontPath, 0, &m_ftFace);
+    if (error) return AUI_ERRCODE_HACK;
+    if (FT_Select_Charmap(m_ftFace, FT_ENCODING_UNICODE)) {
+        Unload();
+        return AUI_ERRCODE_HACK;
+    }
+    AUI_ERRCODE result = SetPointSize(m_pointSize);
+    if (!AUI_SUCCESS(result)) Unload();
+    return result;
+#else
 #ifdef __linux__
 	sint32 error = TT_Open_Face(s_ttEngine, CI_FixName(m_ttffile), &m_ttFace);
 #else
@@ -285,6 +328,7 @@ AUI_ERRCODE aui_BitmapFont::Load( void )
 
 	SetPointSize( m_pointSize );
 
+#endif
 	return AUI_ERRCODE_OK;
 }
 
@@ -296,6 +340,11 @@ AUI_ERRCODE aui_BitmapFont::Unload( void )
 
 	memset( m_glyphs, 0, sizeof( m_glyphs ) );
 
+#ifdef CTP2_FREETYPE2
+    if (m_ftFace) FT_Done_Face(m_ftFace);
+    m_ftFace = nullptr;
+    m_curOffset = 0;
+#else
 	if ( m_ttFace.z )
 	{
 		TT_Close_Face( m_ttFace );
@@ -304,6 +353,7 @@ AUI_ERRCODE aui_BitmapFont::Unload( void )
 		m_ttCharMap.z = NULL;
 	}
 
+#endif
 	return AUI_ERRCODE_OK;
 }
 
@@ -330,6 +380,17 @@ AUI_ERRCODE aui_BitmapFont::SetPointSize( sint32 pointSize )
 // diabled because SetPointSize needed in linux debug version before m_surfaceList is populated	Assert( !HasCached() );
 	if ( HasCached() ) return AUI_ERRCODE_HACK;
 
+#ifdef CTP2_FREETYPE2
+    if (!m_ftFace || pointSize <= 0 || pointSize > 512) return AUI_ERRCODE_INVALIDPARAM;
+    if (FT_Set_Char_Size(m_ftFace, 0, static_cast<FT_F26Dot6>(pointSize) * 64, 96, 96))
+        return AUI_ERRCODE_HACK;
+    m_pointSize = pointSize;
+    int baseline = 0, height = 0;
+    if (!ctp2_GetLegacyFontMetrics(m_ftFace, baseline, height)) return AUI_ERRCODE_HACK;
+    SetBaseLine(baseline);
+    SetMaxHeight(height);
+    SetLineSkip(m_maxHeight);
+#else
 	sint32 error = TT_Set_Instance_CharSize( m_ttInstance, pointSize * 64 );
 	Assert( error == 0 );
 	if ( error ) return AUI_ERRCODE_HACK;
@@ -382,6 +443,7 @@ AUI_ERRCODE aui_BitmapFont::SetPointSize( sint32 pointSize )
 	SetMaxHeight( m_baseLine + maxDescend / 64 );
 	SetLineSkip( m_maxHeight );
 
+#endif
 	return AUI_ERRCODE_OK;
 }
 
@@ -449,6 +511,7 @@ sint32 aui_BitmapFont::SetBaseLine( sint32 baseLine )
 	return prevBaseLine;
 }
 
+#ifndef CTP2_FREETYPE2
 aui_BitmapFont::GlyphInfo *aui_BitmapFont::GetGlyphInfo( MBCHAR c )
 {
 	if ( !IsCached( c ) )
@@ -755,6 +818,8 @@ aui_BitmapFont::GlyphInfo *aui_BitmapFont::GetGlyphInfo( const MBCHAR *pc )
 		return m_glyphs + (sint32) c;
 }
 #endif	// _JAPANESE
+
+#endif // legacy FreeType 1 glyph cache
 
 
 AUI_ERRCODE aui_BitmapFont::DrawString(

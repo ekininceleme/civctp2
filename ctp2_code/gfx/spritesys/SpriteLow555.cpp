@@ -1573,10 +1573,13 @@ inline void Sprite::__Shadow_555_32(PixelAddress &dest,PixelAddress &src,sint32 
 {
   while (num)
   {
-  	 num--;
-  	*dest.l_ptr = pixelutils_Shadow32_555(*src.l_ptr);
-  	 dest.l_ptr+=dest_inc;
-  	 src.l_ptr +=src_inc;
+	 num--;
+	Pixel32 pair;
+	memcpy(&pair, src.b_ptr, sizeof(pair));
+	pair = pixelutils_Shadow32_555(pair);
+	memcpy(dest.b_ptr, &pair, sizeof(pair));
+	 dest.b_ptr += dest_inc * static_cast<sint32>(sizeof(Pixel32));
+	 src.b_ptr += src_inc * static_cast<sint32>(sizeof(Pixel32));
   }
 }
 
@@ -1584,8 +1587,11 @@ inline void Sprite::__Shadow_555_32(PixelAddress &dest,sint32 dest_inc,sint32 nu
 {
   while (num)
   {
-  	 num--;
-  	*dest.l_ptr = pixelutils_Shadow32_555(*dest.l_ptr);
-  	 dest.l_ptr+=dest_inc;
+	 num--;
+	Pixel32 pair;
+	memcpy(&pair, dest.b_ptr, sizeof(pair));
+	pair = pixelutils_Shadow32_555(pair);
+	memcpy(dest.b_ptr, &pair, sizeof(pair));
+	 dest.b_ptr += dest_inc * static_cast<sint32>(sizeof(Pixel32));
   }
 }

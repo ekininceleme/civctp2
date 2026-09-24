@@ -3225,3 +3225,5 @@ str_tbl_ldl_BarbarianCities_On			"Entrenched Barbarians settle cities - On"	# En
 str_tbl_ldl_BarbarianCamps_On			"Entrenched Barbarians create Tile Imps - On"	# Entrenched barbarians create an imp
 str_tbl_ldl_AINoSinking_On			"AI ships don't sink"				# AI ships don't sink
 str_tbl_ldl_AINoSinking_Off			"AI ships can sink"				# AI ships don't sink
+
+str_ldl_GAME_SCALE "Game scale"

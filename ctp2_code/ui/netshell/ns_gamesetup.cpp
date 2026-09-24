@@ -239,15 +239,17 @@ void nf_GameSetup::Unpack()
 
 void nf_GameSetup::SetSavedId( uint32 savedId )
 {
-	uint32 *buff = (uint32 *)GetUserField();
-
-	buff[ 1 ] = savedId;
-	SetUserField( (char *)buff, 2 * sizeof( uint32 ) );
+	// The packed session user field does not guarantee uint32 alignment.
+	uint32 buff[2];
+	memcpy(buff, GetUserField(), sizeof(buff));
+	buff[1] = savedId;
+	SetUserField(buff, sizeof(buff));
 }
 uint32 nf_GameSetup::GetSavedId( void )
 {
-	uint32 *buff = (uint32 *)GetUserField();
-	return buff[ 1 ];
+	uint32 savedId;
+	memcpy(&savedId, GetUserField() + sizeof(uint32), sizeof(savedId));
+	return savedId;
 }
 
 void nf_GameSetup::WriteToFile(FILE *saveFile) const

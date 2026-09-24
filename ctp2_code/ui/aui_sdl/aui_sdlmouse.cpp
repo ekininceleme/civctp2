@@ -5,6 +5,7 @@
 
 #include "aui_ui.h"
 #include "aui_sdlmouse.h"
+#include "aui_sdlui.h"
 
 #include "ctp2_listbox.h"
 #include "c3_listbox.h"
@@ -45,7 +46,7 @@ aui_SDLMouse::aui_SDLMouse(
 	if (!AUI_SUCCESS(*retval)) return;
 
 	int x = 0, y = 0;
-	SDL_GetMouseState(&x, &y);
+	static_cast<aui_SDLUI *>(g_ui)->GetLogicalMousePosition(x, y);
 	m_data.position.x = x;
 	m_data.position.y = y;
 
@@ -274,7 +275,35 @@ void aui_SDLMouse::ActivateCursor(aui_Cursor *cursor)
 		{
 			POINT hotspot;
 			cursor->GetHotspot(hotspot);
-			SDL_Cursor *sdlCursor = SDL_CreateColorCursor(sdlCursorSurface->GetSDLSurface(), hotspot.x, hotspot.y);
+			SDL_Surface *source = sdlCursorSurface->GetSDLSurface();
+            const float scale = static_cast<aui_SDLUI *>(g_ui)->GetCursorScale();
+            const int width = std::max(1, int(source->w * scale + 0.5f));
+            const int height = std::max(1, int(source->h * scale + 0.5f));
+            SDL_Surface *scaled = NULL;
+            if (width != source->w || height != source->h)
+            {
+                SDL_Surface *rgba = SDL_ConvertSurfaceFormat(source, SDL_PIXELFORMAT_ARGB8888, 0);
+                scaled = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
+                if (rgba && scaled)
+                {
+                    SDL_SetSurfaceBlendMode(rgba, SDL_BLENDMODE_NONE);
+                    if (SDL_BlitScaled(rgba, NULL, scaled, NULL) != 0)
+                    {
+                        SDL_FreeSurface(scaled);
+                        scaled = NULL;
+                    }
+                }
+                else
+                {
+                    SDL_FreeSurface(scaled);
+                    scaled = NULL;
+                }
+                SDL_FreeSurface(rgba);
+            }
+            SDL_Cursor *sdlCursor = SDL_CreateColorCursor(scaled ? scaled : source,
+                scaled ? std::min(width - 1, int(hotspot.x * scale + 0.5f)) : hotspot.x,
+                scaled ? std::min(height - 1, int(hotspot.y * scale + 0.5f)) : hotspot.y);
+            SDL_FreeSurface(scaled);
 			if (sdlCursor != NULL)
 			{
 				SDL_Cursor *currentSDLCursor = SDL_GetCursor();

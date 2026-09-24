@@ -264,6 +264,7 @@ public:
 	void RunWorkViewTriggers();
 	void RunSentCeaseFireTriggers(sint32 owner, sint32 recipient);
 
+	// Variadic arguments: unit/city/army IDs are uint32; locations are const MapPoint*.
 	void RunTrigger(TRIGGER_LIST tlist, ...);
 	MBCHAR GetTriggerKey(sint32 index);
 	void SetTriggerKey(sint32 index, MBCHAR key);
@@ -305,6 +306,7 @@ public:
 	SlicDBInterface *GetDBConduit(const char *name);
 
 	void AddModFuncs();
+	// Uses the same variadic argument representation as RunTrigger.
 	sint32 CallMod(MOD_FUNC modFunc, sint32 def, ...);
 
 	sint32 CallExcludeFunc(const MBCHAR *name, sint32 type, sint32 player);

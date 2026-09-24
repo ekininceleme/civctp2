@@ -44,7 +44,9 @@
 #include <string.h>
 
 #include "ldl.h"
+#ifndef CTP2_FREETYPE2
 #include "freetype.h"
+#endif
 
 #include "auicfg.h"
 #include "auitypes.h"

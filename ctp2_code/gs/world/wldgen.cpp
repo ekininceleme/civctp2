@@ -44,7 +44,8 @@
 //
 //----------------------------------------------------------------------------
 
-#include "c3.h"                     // pre-compiled
+#include "c3.h"
+#include "mappluginloader.h"                     // pre-compiled
 #include "World.h"                  // own declarations, g_theWorld
 #include "worldutils.h"
 
@@ -2568,7 +2569,7 @@ IMapGenerator *World::LoadMapPlugin(sint32 pass)
 	char *p = strrchr(name_so, '.');
 	if(p) strcpy(p, ".so"); // Quickly change .dll to .so
 	//printf("DLL, open %s => %s\n", name, CI_FixName(name_so));
-	plugin = dlopen(CI_FixName(name_so), RTLD_LAZY);
+	plugin = ctp2_OpenMapPlugin(CI_FixName(name_so));
 	free(name_so);
 #endif
 	if(plugin == NULL) {
@@ -2579,7 +2580,7 @@ IMapGenerator *World::LoadMapPlugin(sint32 pass)
 		c3errors_ErrorDialog("Map Generator", "Could not load library %s, using builtin map generator", name);
 #endif
 #else
-		fprintf(stderr, "Could not load library %s, using builtin map generator: %s", name_so, dlerror());
+		fprintf(stderr, "Could not load library %s, using builtin map generator: %s", name, dlerror());
 #endif
 		return NULL;
 	}
@@ -2598,7 +2599,7 @@ IMapGenerator *World::LoadMapPlugin(sint32 pass)
 #endif
 #else
 		dlclose(plugin);
-		c3errors_ErrorDialog("Map Generator", "Plugin %s is not a valid map generator", name_so);
+		c3errors_ErrorDialog("Map Generator", "Plugin %s is not a valid map generator", name);
 #endif
 		return NULL;
 	}
