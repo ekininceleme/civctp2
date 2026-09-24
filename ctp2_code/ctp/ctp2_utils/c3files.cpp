@@ -65,6 +65,11 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#if defined(__APPLE__)
+#include <dirent.h>
+#include <pwd.h>
+#include <libgen.h>
+#endif
 #ifdef __linux__
 #include <features.h>
 #include <sys/ioctl.h>
@@ -463,20 +468,29 @@ const MBCHAR *c3files_GetCTPHomeDir()
 		init = TRUE;
 #if defined(LINUX)
 		MBCHAR tmp[MAX_PATH] = {0};
-		uid_t uid = getuid();
-		struct passwd *pwent = getpwuid(uid);
-		if(!pwent)
-			return NULL;
+		const char *userDir = getenv("CTP2_USER_DIR");
+		int s;
+		if (userDir && *userDir)
+		{
+			s = snprintf(tmp, MAX_PATH, "%s", userDir);
+		}
+		else
+		{
+			uid_t uid = getuid();
+			struct passwd *pwent = getpwuid(uid);
+			if(!pwent)
+				return NULL;
 
-		if(!pwent->pw_dir)
-			return NULL;
+			if(!pwent->pw_dir)
+				return NULL;
 
-		if(!*pwent->pw_dir)
-			return NULL;
+			if(!*pwent->pw_dir)
+				return NULL;
 
-		size_t s = snprintf(tmp, MAX_PATH, "%s" FILE_SEP "%s",
-							pwent->pw_dir, ".civctp2");
-		if(s > MAX_PATH)
+			s = snprintf(tmp, MAX_PATH, "%s" FILE_SEP "%s",
+								pwent->pw_dir, ".civctp2");
+		}
+		if(s < 0 || s >= MAX_PATH)
 		{
 			return NULL;
 		}

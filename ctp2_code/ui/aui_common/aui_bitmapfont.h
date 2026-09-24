@@ -74,7 +74,12 @@ class aui_BitmapFont;
 #include "aui_base.h"       // aui_Base
 #include "aui_surface.h"    // aui_Surface
 #include "ctp2_inttypes.h"  // uint8, uint16, sint32
-#include "freetype.h"       // TT_...
+#ifdef CTP2_FREETYPE2
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#else
+#include "freetype.h"       // Legacy build only
+#endif
 #include "tech_wllist.h"
 // AUI_ERRCODE, COLORREF, MBCHAR, POINT, RECT
 
@@ -112,7 +117,11 @@ public:
 	AUI_ERRCODE Load( void );
 	AUI_ERRCODE Unload( void );
 
+	#ifdef CTP2_FREETYPE2
+	bool IsLoaded( void ) const { return m_ftFace != nullptr; }
+#else
 	bool IsLoaded( void ) const { return m_ttFace.z != NULL; }
+#endif
 
 	bool HasCached( void ) const { return m_surfaceList->L() != 0; }
 
@@ -269,6 +278,12 @@ protected:
 	sint32 m_tabSkip;
 
 	static sint32           s_bitmapFontRefCount;
+#ifdef CTP2_FREETYPE2
+    static FT_Library s_ftLibrary;
+    FT_Face m_ftFace = nullptr;
+    bool m_hasLibraryRef = false;
+    GlyphInfo *CacheGlyph(uint16 codepoint);
+#else
 	static TT_Engine	      s_ttEngine;
 
 	TT_Face				m_ttFace;
@@ -276,6 +291,7 @@ protected:
 	TT_Instance			m_ttInstance;
 	TT_Instance_Metrics	m_ttInstanceMetrics;
 	TT_CharMap			m_ttCharMap;
+#endif
 };
 
 #endif

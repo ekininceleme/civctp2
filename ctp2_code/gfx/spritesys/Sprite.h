@@ -263,9 +263,10 @@ protected:
 	{
 		while(num)
 		{
-			*dest.l_ptr = *src.l_ptr;
-			dest.l_ptr += dest_inc;
-			src.l_ptr  += src_inc;
+			// A pair of 16-bit pixels need not be aligned for a 32-bit access.
+			memcpy(dest.b_ptr, src.b_ptr, sizeof(Pixel32));
+			dest.b_ptr += dest_inc * static_cast<sint32>(sizeof(Pixel32));
+			src.b_ptr  += src_inc * static_cast<sint32>(sizeof(Pixel32));
 			num--;
 		}
 	};

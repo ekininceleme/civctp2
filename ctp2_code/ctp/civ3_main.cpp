@@ -67,6 +67,10 @@
 #include "c3.h"         // Pre-compiled header
 #include "civ3_main.h"  // Own declarations: consistency check
 
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
+
 #include "AdvanceRecord.h"
 #include <algorithm>                    // std::fill
 #if defined(__GNUC__)
@@ -178,8 +182,8 @@
 #include <unistd.h>
 #endif
 #if defined(USE_SDL)
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_mixer.h>
+#include <SDL.h>
+#include <SDL_mixer.h>
 #if defined(__AUI_USE_SDL__)
 #include "aui_sdlkeyboard.h"
 #endif
@@ -305,6 +309,12 @@ namespace Os
 		DWORD   filepathLength      = GetModuleFileName(NULL, filepath, MAX_PATH);
 
 		return std::basic_string<TCHAR>(filepath, filepathLength);
+#elif defined(__APPLE__)
+		char filepath[PATH_MAX];
+		uint32_t size = sizeof(filepath);
+		if (_NSGetExecutablePath(filepath, &size) != 0)
+			return std::basic_string<TCHAR>();
+		return std::basic_string<TCHAR>(filepath);
 #elif defined(HAVE_UNISTD_H) && defined(LINUX)
 		char szLink[MAX_PATH] = { 0 };
 		char szTemp[MAX_PATH] = { 0 };
@@ -1648,6 +1658,11 @@ int WINAPI CivMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine,
 			SetCurrentDirectory(exepath);
 		}
 	}
+#elif defined(__APPLE__)
+	std::string executablePath = Os::GetExeName();
+	std::string::size_type separator = executablePath.find_last_of('/');
+	if (separator != std::string::npos)
+		chdir(executablePath.substr(0, separator).c_str());
 #elif defined(LINUX)
 	char result[PATH_MAX];
 	ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
@@ -1757,6 +1772,19 @@ int WINAPI CivMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine,
 		g_civApp->InitializeApp(hInstance, iCmdShow);
 	}
 
+// Opt-in regression entry point: exercise the same screen construction as
+// the New Game button, including text-field font loading. Requires game data.
+	const char *uiSmokeMode = getenv("CTP2_TEST_NEW_GAME");
+	const bool uiSmokeLaunch = uiSmokeMode && strcmp(uiSmokeMode, "launch") == 0;
+	int uiSmokeFrames = uiSmokeMode && (strcmp(uiSmokeMode, "1") == 0 || uiSmokeLaunch) ? 60 : 0;
+	if (uiSmokeMode)
+	{
+		if (spnewgamescreen_displayMyWindow() != 0) return 1;
+		fprintf(stderr, "CTP2 test: New Game screen initialized\n");
+        if (uiSmokeLaunch)
+            spnewgamescreen_startPress(nullptr, AUI_BUTTON_ACTION_EXECUTE, 0, nullptr);
+	}
+
 // ToDo: Move this below into a specialized class like aui_sdlui or aui_directui
 #if defined(__AUI_USE_SDL__)
 	g_secondaryKeyboardEventQueueMutex = SDL_CreateMutex();
@@ -1771,6 +1799,11 @@ int WINAPI CivMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine,
 	{
 		uint32 frameStartTick = GetTickCount();
 		g_civApp->Process();
+		if (uiSmokeFrames > 0 && --uiSmokeFrames == 0) {
+            if (uiSmokeLaunch && g_civApp->IsGameLoaded())
+                fprintf(stderr, "CTP2 test: Game launched and processed 60 frames\n");
+            gDone = TRUE;
+        }
 
 #if defined(__AUI_USE_SDL__)
 		SDL_Event event;

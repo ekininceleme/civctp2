@@ -1,0 +1,11 @@
+{
+  "name": "civctp2",
+  "version-string": "1.2",
+  "builtin-baseline": "dc1232a6e05dcc49703091e83743e3b4df9b9b7c",
+  "dependencies": [
+    "sdl2",
+    {"name": "sdl2-image", "default-features": false, "features": ["libjpeg-turbo"]},
+    {"name": "sdl2-mixer", "default-features": false},
+    "freetype", "tiff", "zlib"
+  ]
+}

@@ -182,6 +182,24 @@ GraphicsWindow {
 
 	#At bottom center
 	####################################
+
+    ScaleButton:SP_BUTTON_SMALL {
+        int xpix 30
+        int ypix 350
+        int widthpix 210
+        int heightpix 21
+        int bevelwidth 0
+        string imagebltflag "chromakey"
+    }
+    ScaleWarning:CTP2_STANDARD_FONT {
+        int xpix 30
+        int ypix 380
+        int widthpix 640
+        int heightpix 20
+        string text "str_ldl_RES_REBOOT_WARNING"
+        string textblttype "fill"
+    }
+
 	ResolutionButton:SP_BUTTON_SMALL{
 		int	widthpix	150
 		int	heightpix	21

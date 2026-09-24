@@ -163,6 +163,7 @@ ProfileDB::ProfileDB()
 #endif
     m_screenResWidth                    (640),
     m_screenResHeight                   (480),
+    m_screenScalePercent                (100),
     m_zoomedCombatAlways                (FALSE),
     m_attackEveryone                    (FALSE),
     m_nonRandomCivs                     (FALSE),
@@ -359,6 +360,7 @@ ProfileDB::ProfileDB()
 	Var("UseDirectXBlitter"          , PV_BOOL  , &m_useDirectXBlitter          , NULL, false);
 	Var("ScreenResWidth"             , PV_NUM   , &m_screenResWidth             , NULL, false);
 	Var("ScreenResHeight"            , PV_NUM   , &m_screenResHeight            , NULL, false);
+	Var("ScreenScalePercent"         , PV_NUM   , &m_screenScalePercent         , NULL, false);
 
 	Var("ZoomedCombatAlways"         , PV_BOOL  , &m_zoomedCombatAlways         , NULL, false);
 	Var("AttackEveryone"             , PV_BOOL  , &m_attackEveryone             , NULL, false);
@@ -535,6 +537,7 @@ BOOL ProfileDB::Init(BOOL forTutorial)
 		{
 			sint32 const    saved_width     = m_screenResWidth;
 			sint32 const    saved_height    = m_screenResHeight;
+			sint32 const    saved_scale     = m_screenScalePercent;
 			BOOL const      res             = Parse(pro_file);
 			fclose(pro_file);
 
@@ -547,6 +550,7 @@ BOOL ProfileDB::Init(BOOL forTutorial)
 			{
 				m_screenResWidth = saved_width;
 				m_screenResHeight = saved_height;
+				m_screenScalePercent = saved_scale;
 			}
 
 			return res;

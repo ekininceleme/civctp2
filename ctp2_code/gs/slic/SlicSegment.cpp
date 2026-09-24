@@ -29,7 +29,8 @@
 //
 //----------------------------------------------------------------------------
 
-#include "c3.h"                 // Pre-compiled header
+#include "c3.h"
+#include "SlicBytecode.h"                 // Pre-compiled header
 #include "SlicSegment.h"        // Own declarations: consistency check
 
 #include "SlicError.h"
@@ -789,15 +790,15 @@ bool SlicSegment::GetSourceLines(sint32 &firstLineNum, sint32 &firstLineOffset, 
 			return false;
 		codePtr++;
 
-		line = *((sint32 *)codePtr);
+		line = SlicBytecode::Read<sint32>(codePtr);
 		codePtr += sizeof(sint32);
 
-		offset = *((sint32 *)codePtr);
+		offset = SlicBytecode::Read<sint32>(codePtr);
 
 
 		if(offset < 0) {
 			offset = SlicFrame::FindFileOffset(m_filename, line);
-			*((sint32 *)codePtr) = offset;
+			SlicBytecode::Write<sint32>(codePtr, offset);
 		}
 		codePtr += sizeof(int);
 
@@ -829,7 +830,7 @@ sint32 SlicSegment::FindLineNumber(size_t offset)
 			return curLine;
 
 		codePtr++;
-		curLine = *(sint32 *)codePtr;
+		curLine = SlicBytecode::Read<sint32>(codePtr);
 
 		if((codePtr - m_code) >= (sint32)(offset - ((sizeof(int) * 2) + sizeof(SlicConditional*) + 1))) {
 			return curLine;
@@ -859,7 +860,7 @@ uint8 *SlicSegment::GetCodePointer(sint32 lineNumber)
 			return NULL;
 
 		codePtr++;
-		curLine = *(sint32 *)codePtr;
+		curLine = SlicBytecode::Read<sint32>(codePtr);
 		if(curLine == lineNumber) {
 			codePtr--;
 			return codePtr;
@@ -884,7 +885,7 @@ bool SlicSegment::LineHasBreak(sint32 lineNumber, bool &conditional)
 		codePtr++;
 		codePtr += sizeof(int);
 		codePtr += sizeof(int);
-		if(*((SlicConditional**)codePtr) != NULL) {
+		if(SlicBytecode::Read<SlicConditional*>(codePtr) != NULL) {
 			conditional = true;
 		}
 
@@ -915,7 +916,7 @@ void SlicSegment::RemoveConditional(sint32 line)
 		codePtr++;
 		codePtr += sizeof(int);
 		codePtr += sizeof(int);
-		*((SlicConditional **)codePtr) = NULL;
+		SlicBytecode::Write<SlicConditional *>(codePtr, NULL);
 	}
 }
 
@@ -927,7 +928,7 @@ SlicConditional *SlicSegment::GetConditional(sint32 line)
 		codePtr++;
 		codePtr += sizeof(int);
 		codePtr += sizeof(int);
-		return *((SlicConditional **)codePtr);
+		return SlicBytecode::Read<SlicConditional *>(codePtr);
 	}
 	return NULL;
 }
@@ -939,8 +940,8 @@ SlicConditional *SlicSegment::NewConditional(sint32 line, const char *expression
 		codePtr++;
 		codePtr += sizeof(int);
 		codePtr += sizeof(int);
-		*((SlicConditional **)codePtr) = new SlicConditional(expression);
-		return *((SlicConditional **)codePtr);
+		SlicBytecode::Write<SlicConditional *>(codePtr, new SlicConditional(expression));
+		return SlicBytecode::Read<SlicConditional *>(codePtr);
 	}
 	return NULL;
 }

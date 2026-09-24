@@ -73,7 +73,7 @@
 
 
 #if defined(__AUI_USE_SDL__)
-#include "SDL2/SDL.h"
+#include "SDL.h"
 #include "civ3_main.h"
 #endif
 

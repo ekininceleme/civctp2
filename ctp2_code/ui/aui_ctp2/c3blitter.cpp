@@ -128,7 +128,7 @@ AUI_ERRCODE C3Blitter::Blt16To16Fast(
 	uint32 flags )
 {
 	AUI_ERRCODE     retcode         = AUI_ERRCODE_OK;
-#ifdef __arm__
+#if defined(__arm__) || defined(__aarch64__)
 	Assert(0);
 #else
 	const sint32    destPitch       = destSurf->Pitch() / 2;
@@ -269,7 +269,7 @@ L2:
 				retcode = AUI_ERRCODE_SURFACEUNLOCKFAILED;
 		}
 	}
-#endif	//__arm__
+#endif // ARM
 	return retcode;
 }
 
@@ -281,7 +281,7 @@ AUI_ERRCODE C3Blitter::Blt16To16FastMMX(
 	uint32 flags )
 {
 	AUI_ERRCODE     retcode         = AUI_ERRCODE_OK;
-#ifdef __arm__
+#if defined(__arm__) || defined(__aarch64__)
 	Assert(0);
 #else
 	const sint32    destPitch       = destSurf->Pitch() / 2;
@@ -452,7 +452,7 @@ AUI_ERRCODE C3Blitter::Blt16To16FastMMX(
 				retcode = AUI_ERRCODE_SURFACEUNLOCKFAILED;
 		}
 	}
-#endif	//__arm__
+#endif // ARM
 	return retcode;
 }
 
@@ -464,7 +464,7 @@ AUI_ERRCODE C3Blitter::Blt16To16FastFPU(
 	uint32 flags )
 {
 	AUI_ERRCODE     retcode         = AUI_ERRCODE_OK;
-#ifdef __arm__
+#if defined(__arm__) || defined(__aarch64__)
 	Assert(0);
 #else
 	const sint32    destPitch       = destSurf->Pitch() / 2;
@@ -612,7 +612,7 @@ AUI_ERRCODE C3Blitter::Blt16To16FastFPU(
 
 bool C3Blitter::CheckMMXTechnology(void)
 {
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 	return false;
 #else
     bool retval = true;

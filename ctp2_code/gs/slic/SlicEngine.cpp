@@ -2435,7 +2435,7 @@ void SlicEngine::RunTrigger(TRIGGER_LIST tlist, ...)
 						done = TRUE;
 						break;
 					case ST_UNIT:
-						u = va_arg(vl, Unit);
+						u.m_id = va_arg(vl, uint32);
 						if (u.IsValid())
 						{
 							obj->AddUnit(u);
@@ -2444,7 +2444,7 @@ void SlicEngine::RunTrigger(TRIGGER_LIST tlist, ...)
 						}
 						break;
 					case ST_CITY:
-						u = va_arg(vl, Unit);
+						u.m_id = va_arg(vl, uint32);
 						if (u.IsValid())
 						{
 							obj->AddCity(u);
@@ -2469,7 +2469,7 @@ void SlicEngine::RunTrigger(TRIGGER_LIST tlist, ...)
 						obj->AddGold(gold);
 						break;
 					case ST_LOCATION:
-						pos = va_arg(vl, MapPoint);
+						pos = *va_arg(vl, const MapPoint*);
 						obj->AddLocation(pos);
 						break;
 					case ST_ACTION:
@@ -3143,7 +3143,7 @@ sint32 SlicEngine::CallMod(MOD_FUNC modFunc, sint32 def, ...)
 				slicArgs->AddArg(SA_TYPE_INT_VAR, sym);
 				break;
 			case ST_LOCATION:
-				pos = va_arg(vl, MapPoint);
+				pos = *va_arg(vl, const MapPoint*);
 				sym = new SlicSymbolData(SLIC_SYM_LOCATION);
 				sym->SetPos(pos);
 				slicArgs->AddArg(SA_TYPE_INT_VAR, sym);

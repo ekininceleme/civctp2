@@ -1,0 +1,54 @@
+#ifndef CTP2_BUILD_CONFIG_H
+#define CTP2_BUILD_CONFIG_H
+#define HAVE_CXX11 1
+#define HAVE_INTTYPES_H 1
+#define HAVE_STDINT_H 1
+#define HAVE_STDIO_H 1
+#define HAVE_STDLIB_H 1
+#define HAVE_STRING_H 1
+#define HAVE_SYS_STAT_H 1
+#define HAVE_SYS_TYPES_H 1
+#define HAVE_LIMITS_H 1
+#define STDC_HEADERS 1
+#define USE_SDL 1
+#define CTP2_FREETYPE2 1
+#define CTP2_ENABLE_SLICDEBUG 1
+#define AUTOMAKE_INVOKES_YACC 1
+#define YYDEBUG 9
+#define YYTEXT_POINTER 1
+#define _TIFF_DATA_TYPEDEFS_ 1
+#define _MAX_PATH 260
+#define PACKAGE "ctp2"
+#define PACKAGE_NAME "ctp2"
+#define PACKAGE_VERSION "1.2"
+#define PACKAGE_STRING "ctp2 1.2"
+#define VERSION "1.2"
+#define PACKAGE_DATADIR "@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_DATADIR@"
+#define PACKAGE_SYSCONFDIR "@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_SYSCONFDIR@"
+#cmakedefine USE_SDL_FFMPEG 1
+#cmakedefine USE_LOGGING 1
+#ifdef _WIN32
+#define WIN32 1
+#define FILE_SEP "\\"
+#define FILE_SEPC '\\'
+#define PATH_SEP ";"
+#define PATH_SEPC ';'
+#define DIRECTDRAW_VERSION 0x0700
+#define DIRECTINPUT_VERSION 0x0800
+#define DIRECTSOUND_VERSION 0x0700
+#else
+// Transitional name for the existing non-Windows compatibility implementation.
+#define LINUX 1
+#define USE_COM_REPLACEMENT 1
+#define FILE_SEP "/"
+#define FILE_SEPC '/'
+#define PATH_SEP ":"
+#define PATH_SEPC ':'
+#define HAVE_DLFCN_H 1
+#define HAVE_STRINGS_H 1
+#define HAVE_UNISTD_H 1
+#define HAVE_SYS_PARAM_H 1
+#define MAX_PATH PATH_MAX
+#define X_DISPLAY_MISSING 1
+#endif
+#endif

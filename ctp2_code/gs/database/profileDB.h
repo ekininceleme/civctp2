@@ -248,6 +248,7 @@ private:
     sint32	m_useDirectXBlitter;
     sint32	m_screenResWidth;
     sint32	m_screenResHeight;
+    sint32 m_screenScalePercent;
 
     sint32	m_zoomedCombatAlways;
 
@@ -533,6 +534,7 @@ public:
 #endif
     void SetScreenResWidth(sint32 width)                { m_screenResWidth = width; }
     void SetScreenResHeight(sint32 height)              { m_screenResHeight = height; }
+    void SetScreenScalePercent(sint32 percent)          { m_screenScalePercent = percent; }
 
     void SetAttackEveryone(BOOL on)                     { m_attackEveryone = on; }
     void SetAutoSelectFirstUnit(BOOL on)                { m_autoSelectFirstUnit = on; }
@@ -728,6 +730,7 @@ public:
 #endif
     sint32      GetScreenResWidth() const       { return m_screenResWidth; }
     sint32      GetScreenResHeight() const      { return m_screenResHeight; }
+    sint32      GetScreenScalePercent() const   { return m_screenScalePercent; }
 
     BOOL        IsAttackEveryone() const        { return m_attackEveryone; }
     BOOL        IsAutoSelectFirstUnit() const   { return m_autoSelectFirstUnit; }

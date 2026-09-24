@@ -53,6 +53,7 @@
 #define lint
 
 void yyerror(const char* err);
+int yylex(void);
 
 char *sliccmd_output;
 int sliccmd_output_len;

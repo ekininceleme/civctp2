@@ -38,6 +38,7 @@
 #include "profileDB.h"        // g_theProfileDB
 #include "LanguageRecord.h"
 #include <clocale>
+#include <string>
 #if defined(__AUI_USE_SDL__)
 #include "SDL_locale.h"
 #endif
@@ -1014,10 +1015,12 @@ const LanguageRecord* CivPaths::FindLanguage()
 
 void CivPaths::SetLocalizedPath(const MBCHAR *path)
 {
-	sprintf(m_localizedPath, "%s", path);
+	// path may point into either destination, including the profile's current value.
+	const std::string languagePath(path);
+	sprintf(m_localizedPath, "%s", languagePath.c_str());
 	ReplaceFileSeperator(m_localizedPath);
 	if(g_theProfileDB)
-		g_theProfileDB->SetLanguageDirectory(path);
+		g_theProfileDB->SetLanguageDirectory(languagePath.c_str());
 }
 
 bool CivPaths::CompareLocals(const MBCHAR *locale1, const wchar_t* locale2) const

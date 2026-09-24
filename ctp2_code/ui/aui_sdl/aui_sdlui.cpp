@@ -34,6 +34,7 @@
 #ifdef __AUI_USE_SDL__
 
 #include "aui_sdlui.h"
+#include "display.h"
 
 #include "civ3_main.h"
 
@@ -122,10 +123,11 @@ AUI_ERRCODE aui_SDLUI::CreateNativeScreen( BOOL useExclusiveMode )
 	m_pixelFormat = aui_Surface::TransformBppToSurfacePixelFormat(m_bpp);
 
 	// Windows are right now not resizable, the content is also be shrunken, which should not happen.
-	uint32 sdl_flags = g_theProfileDB->IsWindowedMode() ? SDL_WINDOW_ALLOW_HIGHDPI /*| SDL_WINDOW_RESIZABLE*/ : SDL_WINDOW_FULLSCREEN_DESKTOP;
+	uint32 sdl_flags = SDL_WINDOW_ALLOW_HIGHDPI;
+	if (!g_theProfileDB->IsWindowedMode()) sdl_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
 	m_SDLWindow = SDL_CreateWindow("Call To Power 2", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-	                               m_width, m_height, sdl_flags);
+	                               display_GetOutputWidth(), display_GetOutputHeight(), sdl_flags);
 
 	if (!m_SDLWindow)
 	{
@@ -142,13 +144,25 @@ AUI_ERRCODE aui_SDLUI::CreateNativeScreen( BOOL useExclusiveMode )
 	}
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-	SDL_RenderSetLogicalSize(m_SDLRenderer, m_width, m_height);
+	if (SDL_RenderSetLogicalSize(m_SDLRenderer, m_width, m_height) < 0)
+	{
+		c3errors_FatalDialog("aui_SDLUI", "SDL scaling failed:\n%s\n", SDL_GetError());
+		return AUI_ERRCODE_CREATEFAILED;
+	}
 	m_SDLTexture = SDL_CreateTexture(m_SDLRenderer, aui_SDLSurface::TransformSurfacePixelFormatToSDL(m_pixelFormat),
 		SDL_TEXTUREACCESS_STREAMING, m_width, m_height);
 
 	if (!m_SDLTexture)
 	{
 		c3errors_FatalDialog("aui_SDLUI", "SDL texture creation failed:\n%s\n", SDL_GetError());
+	}
+
+	int outputWidth, outputHeight;
+	if (SDL_GetRendererOutputSize(m_SDLRenderer, &outputWidth, &outputHeight) == 0)
+	{
+		fprintf(stdout, "SDL display: output %dx%d, game canvas %dx%d, scale %d%%\n",
+		        outputWidth, outputHeight, m_width, m_height, display_GetScalePercent());
+		fflush(stdout);
 	}
 
 	m_primary = new aui_SDLSurface(&errcode, m_width, m_height, m_bpp, NULL, TRUE);
@@ -331,6 +345,24 @@ AUI_ERRCODE aui_SDLUI::AltTabIn( void )
 	}
 
 	return FlushDirtyList();
+}
+
+void aui_SDLUI::GetLogicalMousePosition(sint32 &x, sint32 &y) const
+{
+    int windowX, windowY;
+    SDL_GetMouseState(&windowX, &windowY);
+    float logicalX, logicalY;
+    SDL_RenderWindowToLogical(m_SDLRenderer, windowX, windowY, &logicalX, &logicalY);
+    x = std::max(0, std::min(m_width - 1, static_cast<int>(logicalX)));
+    y = std::max(0, std::min(m_height - 1, static_cast<int>(logicalY)));
+}
+
+float aui_SDLUI::GetCursorScale() const
+{
+    int width, height;
+    SDL_GetWindowSize(m_SDLWindow, &width, &height);
+    // Native cursor dimensions are window coordinates, not Retina pixels.
+    return std::min(float(width) / m_width, float(height) / m_height);
 }
 
 aui_MovieManager* aui_SDLUI::CreateMovieManager( void )

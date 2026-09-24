@@ -1,0 +1,116 @@
+# One producer per schema; enumerate every generated record.
+ctp2_schema(Civilisation.cdb
+  CivilisationRecord
+)
+ctp2_schema(Concept.cdb
+  ConceptRecord
+)
+ctp2_schema(Const.cdb
+  ConstRecord
+)
+ctp2_schema(Difficulty.cdb
+  DifficultyRecord
+)
+ctp2_schema(DiplomacyProposal.cdb
+  DiplomacyProposalRecord
+)
+ctp2_schema(DiplomacyThreat.cdb
+  DiplomacyThreatRecord
+)
+ctp2_schema(EndGameObject.cdb
+  EndGameObjectRecord
+)
+ctp2_schema(GlobalWarming.cdb
+  GlobalWarmingRecord
+)
+ctp2_schema(Language.cdb
+  LanguageRecord
+)
+ctp2_schema(Leader.cdb
+  LeaderRecord
+)
+ctp2_schema(Map.cdb
+  MapRecord
+)
+ctp2_schema(Pollution.cdb
+  PollutionRecord
+)
+ctp2_schema(Risk.cdb
+  RiskRecord
+)
+ctp2_schema(TerrainImprovement.cdb
+  TerrainImprovementRecord
+)
+ctp2_schema(advance.cdb
+  AdvanceBranchRecord
+  AdvanceRecord
+  AgeRecord
+)
+ctp2_schema(building.cdb
+  BuildingRecord
+)
+ctp2_schema(citysize.cdb
+  CitySizeRecord
+)
+ctp2_schema(citystyle.cdb
+  AgeCityStyleRecord
+  CityStyleRecord
+)
+ctp2_schema(culture.cdb
+  CultureRecord
+)
+ctp2_schema(diplomacy.cdb
+  DiplomacyRecord
+)
+ctp2_schema(feat.cdb
+  FeatRecord
+)
+ctp2_schema(goal.cdb
+  GoalRecord
+)
+ctp2_schema(government.cdb
+  GovernmentRecord
+)
+ctp2_schema(icon.cdb
+  IconRecord
+)
+ctp2_schema(order.cdb
+  OrderRecord
+)
+ctp2_schema(personality.cdb
+  PersonalityRecord
+)
+ctp2_schema(pop.cdb
+  PopRecord
+)
+ctp2_schema(religion.cdb
+  ReligionRecord
+)
+ctp2_schema(strategy.cdb
+  AdvanceListRecord
+  BuildListSequenceRecord
+  BuildingBuildListRecord
+  ImprovementListRecord
+  StrategyRecord
+  UnitBuildListRecord
+  WonderBuildListRecord
+)
+ctp2_schema(terrain.cdb
+  ResourceRecord
+  TerrainRecord
+)
+ctp2_schema(unit.cdb
+  MapIconRecord
+  SoundRecord
+  SpecialAttackInfoRecord
+  SpecialEffectRecord
+  SpriteRecord
+  UnitRecord
+)
+ctp2_schema(unitpromotion.cdb
+  UnitpromotionRecord
+)
+ctp2_schema(wonder.cdb
+  WonderMovieRecord
+  WonderRecord
+)

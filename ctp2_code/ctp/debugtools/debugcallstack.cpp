@@ -63,7 +63,7 @@
 #include "log_off.h"
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include <execinfo.h>
 #include <dlfcn.h>
 #include "civ3_main.h"
@@ -336,7 +336,7 @@ void Debug_FunctionNameClose (void)
 
 const char *Debug_FunctionNameGet (size_t address)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	Dl_info info;
 	if(dladdr((void*)address, &info) != 0)
 	{
@@ -369,7 +369,7 @@ const char *Debug_FunctionNameAndOffsetGet (size_t address, size_t *offset)
 {
 	*offset = 0;
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 	Dl_info info;
 	if(dladdr((void*)address, &info) != 0)
 	{

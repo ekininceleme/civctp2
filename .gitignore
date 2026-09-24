@@ -899,3 +899,11 @@ usercritmsgs.txt
 userkeymap.txt
 userprofile.txt
 
+
+# Local macOS dependencies, analysis reports and disposable diagnostic builds
+/.native/
+__pycache__/
+
+# Out-of-source builds and machine-local CMake settings
+/build/
+/CMakeUserPresets.json

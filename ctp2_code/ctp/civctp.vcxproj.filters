@@ -3628,9 +3628,6 @@
     <ClInclude Include="..\robot\aibackdoor\priorityqueue.h">
       <Filter>robot\aibackdoor</Filter>
     </ClInclude>
-    <ClInclude Include="..\robot\aibackdoor\sdl_endian.h">
-      <Filter>robot\aibackdoor</Filter>
-    </ClInclude>
     <ClInclude Include="..\robot\aibackdoor\semi_dynamic_array.h">
       <Filter>robot\aibackdoor</Filter>
     </ClInclude>

@@ -680,7 +680,7 @@ void Happy::CalcHappiness(CityData &cd, bool projectedOnly,
 	CalcCrime(cd, p);
 
 	sint32 intHap = (sint32)m_happiness;
-	sint32 newHappiness = g_slicEngine->CallMod(mod_CityHappiness, intHap, cd.GetHomeCity(), intHap);
+	sint32 newHappiness = g_slicEngine->CallMod(mod_CityHappiness, intHap, cd.GetHomeCity().m_id, intHap);
 	if(intHap != newHappiness)
 		m_happiness = newHappiness;
 }

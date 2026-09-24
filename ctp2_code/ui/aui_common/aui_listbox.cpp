@@ -52,7 +52,7 @@
 #include "ldl_file.hpp"
 
 #if defined(__AUI_USE_SDL__)
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #endif
 
 aui_DragDropWindow *aui_ListBox::m_dragDropWindow = NULL;

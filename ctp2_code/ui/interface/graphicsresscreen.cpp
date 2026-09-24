@@ -105,8 +105,8 @@ void ScreenResListCallback( aui_Control *control, uint32 action, uint32 data, Co
 
 	s_selectedDisplayMode = item->GetDisplayMode();
 
-	if (s_selectedDisplayMode->width == g_ScreenWidth &&
-		s_selectedDisplayMode->height == g_ScreenHeight) {
+	if (s_selectedDisplayMode->width == display_GetOutputWidth() &&
+		s_selectedDisplayMode->height == display_GetOutputHeight()) {
 		s_warning->Hide();
 	} else {
 		s_warning->Show();
@@ -168,7 +168,7 @@ AUI_ERRCODE graphicsresscreen_Initialize( void )
 		if (mode) {
 			ScreenResListItem		*item = new ScreenResListItem(&errcode, mode, controlBlock);
 			s_resList->AddItem((aui_Item *)item);
-			if (mode->width == g_ScreenWidth && mode->height == g_ScreenHeight) {
+			if (mode->width == display_GetOutputWidth() && mode->height == display_GetOutputHeight()) {
 
 				s_currentResIndex = i;
 			}
@@ -212,8 +212,8 @@ void graphicsresscreen_acceptPress(aui_Control *control, uint32 action, uint32 d
 {
 	if ( graphicsresscreen_removeMyWindow(action) ) {
 		if (s_selectedDisplayMode) {
-			if (s_selectedDisplayMode->width != g_ScreenWidth ||
-				s_selectedDisplayMode->height != g_ScreenHeight) {
+			if (s_selectedDisplayMode->width != display_GetOutputWidth() ||
+				s_selectedDisplayMode->height != display_GetOutputHeight()) {
 				g_theProfileDB->SetScreenResWidth(s_selectedDisplayMode->width);
 				g_theProfileDB->SetScreenResHeight(s_selectedDisplayMode->height);
 				g_theProfileDB->SetTryWindowsResolution(FALSE);

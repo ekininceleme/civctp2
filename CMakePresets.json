@@ -1,0 +1,21 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {"major": 3, "minor": 24, "patch": 0},
+  "configurePresets": [
+    {"name":"native", "generator":"Ninja", "binaryDir":"${sourceDir}/build/${presetName}", "cacheVariables":{"CMAKE_BUILD_TYPE":"RelWithDebInfo", "BUILD_TESTING":"ON"}},
+    {"name":"debug", "inherits":"native", "cacheVariables":{"CMAKE_BUILD_TYPE":"Debug"}},
+    {"name":"sanitize", "inherits":"native", "cacheVariables":{"CTP2_SANITIZERS":"ON"}},
+    {"name":"tools", "inherits":"native", "cacheVariables":{"CTP2_BUILD_GAME":"OFF"}}
+  ],
+  "buildPresets": [
+    {"name":"native", "configurePreset":"native"},
+    {"name":"debug", "configurePreset":"debug"},
+    {"name":"sanitize", "configurePreset":"sanitize"},
+    {"name":"tools", "configurePreset":"tools", "targets":["ctpdb","ctp2_database","native-abi-test","slic-bytecode-test","tile-binary-test"]}
+  ],
+  "testPresets": [
+    {"name":"native", "configurePreset":"native", "output":{"outputOnFailure":true}},
+    {"name":"sanitize", "configurePreset":"sanitize", "output":{"outputOnFailure":true}},
+    {"name":"tools", "configurePreset":"tools", "output":{"outputOnFailure":true}}
+  ]
+}

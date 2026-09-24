@@ -71,6 +71,8 @@ public:
 	AUI_ERRCODE ChangeSize(sint32 width, sint32 height);
 
 	aui_MovieManager* CreateMovieManager( void );
+	void GetLogicalMousePosition(sint32 &x, sint32 &y) const;
+	float GetCursorScale() const;
 
 	virtual AUI_ERRCODE SDLDrawScreen( void );
 
